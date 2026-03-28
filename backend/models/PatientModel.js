@@ -23,6 +23,7 @@ const patientSchema = new mongoose.Schema({
     noKnownAllergies: { type: Boolean, default: false },
     allergies: [
         {
+            _id: false,
             allergen: String,
             reaction: String
         }
@@ -35,6 +36,7 @@ const patientSchema = new mongoose.Schema({
     noRegularMedications: { type: Boolean, default: false },
     permanentMedications: [
         {
+            _id: false,
             name: String,
             dose: String,
             route: String,
