@@ -59,37 +59,11 @@ router.post("/", async (req, res) => {
         res.status(201).json({
             success: true,
             data: transfer,
-            link: `http://localhost:8080/transfers/share/${shareId}`
+            link: `http://localhost:8080/api/v1/transfers/share/${shareId}`
         });
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// ==============================
-// 📄 Get Single Transfer by ID
-// ==============================
-router.get("/:id", async (req, res) => {
-    try {
-        const transfer = await Transfer.findById(req.params.id);
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
-
-    } catch (error) {
         res.status(500).json({
             success: false,
             message: error.message
@@ -171,6 +145,32 @@ router.get("/", async (req, res) => {
         res.status(200).json({
             success: true,
             data: transfers
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+// ==============================
+// 📄 Get Single Transfer by ID
+// ==============================
+router.get("/:id", async (req, res) => {
+    try {
+        const transfer = await Transfer.findById(req.params.id);
+        if (!transfer) {
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: transfer
         });
 
     } catch (error) {
