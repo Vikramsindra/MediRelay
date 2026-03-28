@@ -31,14 +31,17 @@ export default function RecordViewerScreen({ navigation, route }) {
 
   const handleAcknowledge = () => {
     if (!arrivalCondition) return;
+    const now = new Date().toISOString();
     setState((s) => ({
       ...s,
       transfers: s.transfers.map((t) =>
-        t.id === transferId ? { ...t, status: 'Acknowledged' } : t,
+        t.id === transferId ? { ...t, status: 'Acknowledged', acknowledgedAt: now } : t,
       ),
     }));
     setAcknowledged(true);
     setShowAckPanel(false);
+    // Navigate to confirmation screen
+    navigation.navigate('AckConfirmation', { transferId, arrivalTime: now });
   };
 
   return (

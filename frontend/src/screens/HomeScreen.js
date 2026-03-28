@@ -68,7 +68,7 @@ export default function HomeScreen({ navigation }) {
 
         {/* Primary CTA */}
         <TouchableOpacity
-          onPress={() => navigation.navigate('PatientList', { mode: 'transfer' })}
+          onPress={() => navigation.navigate('PatientSearch')}
           style={[styles.newTransferBtn, shadow.md]}
           activeOpacity={0.88}
         >

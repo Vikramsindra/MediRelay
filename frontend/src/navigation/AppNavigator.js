@@ -7,6 +7,7 @@ import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
 import PatientListScreen from '../screens/PatientListScreen';
 import PatientProfileScreen from '../screens/PatientProfileScreen';
+import PatientSearchScreen from '../screens/PatientSearchScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import PatientRegistrationScreen from '../screens/PatientRegistrationScreen';
 import TransferFormScreen from '../screens/TransferFormScreen';
@@ -14,6 +15,7 @@ import DrugConflictScreen from '../screens/DrugConflictScreen';
 import QRDisplayScreen from '../screens/QRDisplayScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import RecordViewerScreen from '../screens/RecordViewerScreen';
+import AckConfirmationScreen from '../screens/AckConfirmationScreen';
 import BottomTabBar from './BottomTabBar';
 
 const Stack = createNativeStackNavigator();
@@ -49,6 +51,7 @@ export default function AppNavigator() {
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="PatientList" component={PatientListScreen} />
             <Stack.Screen name="PatientProfile" component={PatientProfileScreen} />
+            <Stack.Screen name="PatientSearch" component={PatientSearchScreen} />
             <Stack.Screen name="PatientRegistration" component={PatientRegistrationScreen} />
             <Stack.Screen name="TransferForm" component={TransferFormScreen} />
             <Stack.Screen
@@ -59,6 +62,11 @@ export default function AppNavigator() {
             <Stack.Screen name="QRDisplay" component={QRDisplayScreen} />
             <Stack.Screen name="QRScanner" component={QRScannerScreen} />
             <Stack.Screen name="RecordViewer" component={RecordViewerScreen} />
+            <Stack.Screen
+              name="AckConfirmation"
+              component={AckConfirmationScreen}
+              options={{ animation: 'slide_from_bottom' }}
+            />
           </>
         )}
       </Stack.Navigator>

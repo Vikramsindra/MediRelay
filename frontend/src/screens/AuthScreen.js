@@ -1,46 +1,121 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, typography, spacing, radius } from '../theme';
-import { LabeledInput, OTPBoxes } from '../components/Inputs';
-import { PrimaryButton } from '../components/Buttons';
+import { colors, typography, spacing, radius, shadow } from '../theme';
+import { OTPBoxes } from '../components/Inputs';
 import { AppIcon } from '../components/AppIcon';
 import { setState } from '../store';
 
-const STEPS = { PHONE: 'PHONE', OTP: 'OTP', PROFILE: 'PROFILE' };
-
+const SCREENS = {
+  ROLE_PICK: 'ROLE_PICK',
+  HEALTHCARE_LOGIN: 'HEALTHCARE_LOGIN',
+  PATIENT_LOGIN: 'PATIENT_LOGIN',
+  HEALTHCARE_SIGNUP_DETAILS: 'HEALTHCARE_SIGNUP_DETAILS',
+  OTP_VERIFY: 'OTP_VERIFY',
+  SET_PASSWORD: 'SET_PASSWORD',
+};
 export default function AuthScreen({ onAuth }) {
-  const [step, setStep] = useState(STEPS.PHONE);
+  const [screen, setScreen] = useState(SCREENS.ROLE_PICK);
+  const [otpFlow, setOtpFlow] = useState('signup'); // signup | patient
+
+  // Shared
+  const [role, setRole] = useState('Doctor');
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
+
+  // Healthcare sign in
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Signup details
   const [name, setName] = useState('');
-  const [role, setRole] = useState('Doctor');
   const [hospital, setHospital] = useState('');
+  const [councilNo, setCouncilNo] = useState('');
+
+  // Password setup
+  const [signupPassword, setSignupPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // OTP timers
   const [resendTimer, setResendTimer] = useState(0);
+  const [otpExpireTimer, setOtpExpireTimer] = useState(120);
   const [loading, setLoading] = useState(false);
 
-  // Countdown timer for resend OTP
+  const maskedPhone = useMemo(() => {
+    const safe = phone || '';
+    if (safe.length < 4) return '+91 XXXXX0000';
+    return `+91 XXXXX${safe.slice(-4)}`;
+  }, [phone]);
+
+  const passwordStrength = useMemo(() => {
+    let score = 0;
+    if (signupPassword.length >= 12) score += 1;
+    if (/[A-Z]/.test(signupPassword)) score += 1;
+    if (/[^A-Za-z0-9]/.test(signupPassword)) score += 1;
+    if (!name || !signupPassword.toLowerCase().includes(name.toLowerCase().split(' ')[0])) score += 1;
+    return score;
+  }, [signupPassword, name]);
+
+  const passwordsMatch = confirmPassword.length > 0 && signupPassword === confirmPassword;
+
   useEffect(() => {
     if (resendTimer <= 0) return;
     const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [resendTimer]);
 
-  // Auto-submit when OTP is fully entered
   useEffect(() => {
+    if (screen !== SCREENS.OTP_VERIFY || otpExpireTimer <= 0) return;
+    const t = setTimeout(() => setOtpExpireTimer((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [screen, otpExpireTimer]);
+  useEffect(() => {
+    if (screen !== SCREENS.OTP_VERIFY) return;
     if (otp.length === 6) handleVerifyOtp();
-  }, [otp]);
+  }, [otp, screen]);
 
-  const handleSendOtp = () => {
+  const goToOtp = (flowType) => {
+    setOtpFlow(flowType);
+    setOtp('');
+    setScreen(SCREENS.OTP_VERIFY);
+    setResendTimer(30);
+    setOtpExpireTimer(120);
+  };
+
+  const handleHealthcareSignIn = () => {
+    if (phone.length < 10 || password.length < 6) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      setState((s) => ({
+        ...s,
+        doctor: {
+          ...s.doctor,
+          phone,
+          role,
+          isLoggedIn: true,
+        },
+      }));
+      onAuth?.();
+    }, 500);
+  };
+
+  const handleSignupNext = () => {
+    if (!name || !hospital || !councilNo || phone.length < 10) return;
+    goToOtp('signup');
+  };
+
+  const handleSendOtpForPatient = () => {
     if (phone.length < 10) return;
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      setStep(STEPS.OTP);
-      setResendTimer(30);
+      goToOtp('patient');
     }, 800);
   };
 
@@ -49,19 +124,65 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      // First login -> ask profile
-      setStep(STEPS.PROFILE);
+      if (otpFlow === 'signup') {
+        setScreen(SCREENS.SET_PASSWORD);
+      } else {
+        setState((s) => ({
+          ...s,
+          doctor: {
+            ...s.doctor,
+            name:
+              s.doctor?.name && s.doctor.name !== 'Patient User'
+                ? s.doctor.name
+                : 'Dr. Aris Sharma',
+            hospital:
+              s.doctor?.hospital && s.doctor.hospital !== 'Patient View'
+                ? s.doctor.hospital
+                : 'Apollo Hospital',
+            phone,
+            role: s.doctor?.role || 'Doctor',
+            isLoggedIn: true,
+          },
+        }));
+        onAuth?.();
+      }
     }, 600);
   };
 
-  const handleSaveProfile = () => {
-    if (!name || !hospital) return;
+  const handleCreateAccount = () => {
+    if (passwordStrength < 3 || !passwordsMatch) return;
     setState((s) => ({
       ...s,
-      doctor: { name, hospital, phone, role, isLoggedIn: true },
+      doctor: {
+        ...s.doctor,
+        name,
+        hospital,
+        phone,
+        role,
+        councilNo,
+        isLoggedIn: true,
+      },
     }));
     onAuth?.();
   };
+
+  const fieldValid = {
+    healthcareLogin: phone.length === 10 && password.length >= 6,
+    signupDetails: !!name && !!hospital && !!councilNo && phone.length === 10,
+    signupPassword: passwordStrength >= 3 && passwordsMatch,
+    patientPhone: phone.length === 10,
+  };
+
+  const renderTopBrand = (withHelp = true) => (
+    <View style={styles.brandRow}>
+      <Text style={styles.brandWordmark}>MEDIRELAY</Text>
+      {withHelp ? (
+        <TouchableOpacity style={styles.helpCircle} activeOpacity={0.85}>
+          <Text style={styles.helpText}>?</Text>
+        </TouchableOpacity>
+      ) : <View style={{ width: 52 }} />}
+    </View>
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -69,136 +190,421 @@ export default function AuthScreen({ onAuth }) {
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
-          {/* Logo */}
-          <View style={styles.logoBlock}>
-            <View style={styles.logoCircle}>
-              <AppIcon name="check" size={28} color={colors.primary} />
-            </View>
-            <Text style={[typography.displayMd, { color: colors.primary, marginTop: spacing[4] }]}>
-              MediRelay
-            </Text>
-            <Text style={[typography.bodyMd, { color: colors.outline, marginTop: spacing[1.5] }]}>
-              Safe handoffs. Every time.
-            </Text>
-          </View>
+          {screen === SCREENS.ROLE_PICK && (
+            <View style={{ flex: 1, width: '100%' }}>
+              {renderTopBrand(true)}
 
-          {/* Step: Phone */}
-          {step === STEPS.PHONE && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
-                Enter your phone number
-              </Text>
-              <LabeledInput
-                label="Phone Number"
-                value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit mobile number"
-                keyboardType="phone-pad"
-                required
-                autoFocus
-              />
-              <PrimaryButton
-                label="Send OTP"
-                onPress={handleSendOtp}
-                disabled={phone.length < 10}
-                loading={loading}
-              />
-            </View>
-          )}
+              <View style={styles.rolePickCenter}>
+                <Text style={styles.rolePickHeading}>Who are you?</Text>
+                <Text style={styles.rolePickSub}>Select your role to continue</Text>
 
-          {/* Step: OTP */}
-          {step === STEPS.OTP && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[2] }]}>
-                Enter OTP
-              </Text>
-              <Text style={[typography.bodySm, { color: colors.outline, marginBottom: spacing[5] }]}>
-                Sent to +91 {phone}
-              </Text>
-              <OTPBoxes value={otp} onChange={setOtp} length={6} />
-              <View style={styles.resendRow}>
-                {resendTimer > 0 ? (
-                  <Text style={[typography.bodySm, { color: colors.outline, marginTop: spacing[5] }]}>
-                    Resend in {resendTimer}s
-                  </Text>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => { setOtp(''); setResendTimer(30); }}
-                    style={{ marginTop: spacing[5] }}
-                  >
-                    <Text style={[typography.bodyMd, { color: colors.primary }]}>Resend OTP</Text>
-                  </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.roleOptionCard}
+                  onPress={() => setScreen(SCREENS.HEALTHCARE_LOGIN)}
+                >
+                  <View style={styles.roleIconBox}><Text style={styles.roleIconGlyph}>⚕︎</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.roleOptionTitle}>Healthcare Worker</Text>
+                    <Text style={styles.roleOptionSub}>Doctor or Nurse</Text>
+                  </View>
+                  <AppIcon name="chevron-right" size={18} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  activeOpacity={0.9}
+                  style={styles.roleOptionCard}
+                  onPress={() => setScreen(SCREENS.PATIENT_LOGIN)}
+                >
+                  <View style={styles.roleIconBox}><Text style={styles.roleIconGlyph}>👤</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.roleOptionTitle}>Patient / Attendant</Text>
+                    <Text style={styles.roleOptionSub}>View your transfer records</Text>
+                  </View>
+                  <AppIcon name="chevron-right" size={18} color={colors.onSurfaceVariant} />
+                </TouchableOpacity>
               </View>
-              {loading && (
-                <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginTop: spacing[4] }]}>
-                  Verifying…
-                </Text>
-              )}
-              <TouchableOpacity onPress={() => { setStep(STEPS.PHONE); setOtp(''); }} style={{ marginTop: spacing[4] }}>
-                <View style={styles.changeNumberRow}>
-                  <AppIcon name="back" size={14} color={colors.outline} />
-                  <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginLeft: spacing[1] }]}>Change number</Text>
-                </View>
-              </TouchableOpacity>
+
+              <Text style={styles.bottomCaption}>◍  CLINICAL GRADE SECURITY</Text>
             </View>
           )}
 
-          {/* Step: Profile (first login only) */}
-          {step === STEPS.PROFILE && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
-                Complete your profile
-              </Text>
-              <LabeledInput
-                label="Full Name"
-                value={name}
-                onChangeText={setName}
-                placeholder="Dr. Firstname Lastname"
-                required
-                autoFocus
-              />
-              {/* Role toggle */}
-              <View style={{ marginBottom: spacing[5] }}>
-                <Text style={[typography.labelMd, { color: colors.onSurfaceVariant, marginBottom: spacing[2] }]}>
-                  Role
-                </Text>
-                <View style={styles.roleRow}>
-                  {['Doctor', 'Nurse'].map((r) => (
+          {screen === SCREENS.HEALTHCARE_LOGIN && (
+            <View style={{ width: '100%' }}>
+              <View style={styles.portalHeader}>
+                <TouchableOpacity
+                  style={styles.portalBackBtn}
+                  onPress={() => setScreen(SCREENS.ROLE_PICK)}
+                  activeOpacity={0.9}
+                >
+                  <AppIcon name="back" size={20} color="#ffffff" />
+                </TouchableOpacity>
+                <Text style={styles.portalTitle}>MEDIRELAY</Text>
+                <Text style={styles.portalSubtitle}>Secure Staff Portal</Text>
+              </View>
+
+              <View style={styles.sheetCard}>
+                <View style={styles.roleSegmentRow}>
+                  {['Doctor', 'Nurse'].map((item) => (
                     <TouchableOpacity
-                      key={r}
-                      onPress={() => setRole(r)}
-                      style={[
-                        styles.roleBtn,
-                        role === r
-                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                          : { borderColor: colors.outlineVariant },
-                      ]}
+                      key={item}
+                      style={[styles.segmentBtn, role === item && styles.segmentBtnActive]}
+                      onPress={() => setRole(item)}
+                      activeOpacity={0.9}
                     >
-                      <Text style={[typography.titleSm, { color: role === r ? colors.onPrimary : colors.onSurfaceVariant }]}>
-                        {r}
-                      </Text>
+                      <Text style={[styles.segmentText, role === item && styles.segmentTextActive]}>{item}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
+
+                <Text style={styles.inputLabel}>PHONE NUMBER</Text>
+                <View style={styles.phoneRowBox}>
+                  <View style={styles.prefixBox}><Text style={styles.prefixText}>+91</Text></View>
+                  <TextInput
+                    value={phone}
+                    onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                    placeholder="10 digits"
+                    placeholderTextColor={colors.outline}
+                    keyboardType="phone-pad"
+                    style={styles.phoneInput}
+                  />
+                </View>
+
+                <View style={styles.passwordLabelRow}>
+                  <Text style={styles.inputLabel}>PASSWORD</Text>
+                  <TouchableOpacity><Text style={styles.forgotText}>FORGOT?</Text></TouchableOpacity>
+                </View>
+                <View style={styles.passwordRowBox}>
+                  <TextInput
+                    value={password}
+                    onChangeText={setPassword}
+                    placeholder="••••••••"
+                    placeholderTextColor={colors.outline}
+                    secureTextEntry={!showPassword}
+                    style={styles.passwordInput}
+                  />
+                  <TouchableOpacity onPress={() => setShowPassword((s) => !s)}>
+                    <Text style={styles.eyeGlyph}>{showPassword ? '👁️' : '🙈'}</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={[styles.primaryBtn, !fieldValid.healthcareLogin && styles.primaryBtnDisabled]}
+                  onPress={handleHealthcareSignIn}
+                  disabled={!fieldValid.healthcareLogin || loading}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.primaryBtnText}>{loading ? 'Signing in…' : 'Sign In  →'}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.outlineBtn}
+                  onPress={() => setScreen(SCREENS.HEALTHCARE_SIGNUP_DETAILS)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.outlineBtnText}>Create Account</Text>
+                </TouchableOpacity>
               </View>
-              <LabeledInput
-                label="Hospital Name"
-                value={hospital}
-                onChangeText={setHospital}
-                placeholder="e.g. Apollo Hospital"
-                required
-              />
-              <PrimaryButton
-                label="Get Started"
-                onPress={handleSaveProfile}
-                disabled={!name || !hospital}
-              />
+
+              <Text style={styles.footerLegal}>🔒  HIPAA COMPLIANT • END-TO-END ENCRYPTED</Text>
+              <Text style={styles.footerTiny}>By logging in, you agree to our Terms of Service and Privacy Protocol.</Text>
             </View>
           )}
 
+          {screen === SCREENS.PATIENT_LOGIN && (
+            <View style={{ width: '100%' }}>
+              {renderTopBrand(true)}
+
+              <View style={styles.patientHero}>
+                <Text style={styles.patientHeroTitle}>Secure Patient{"\n"}Access</Text>
+                <Text style={styles.patientHeroSub}>Real-time medical transfer tracking</Text>
+              </View>
+
+              <View style={styles.patientRowTop}>
+                <View style={styles.roleIconBox}><Text style={styles.roleIconGlyph}>👤</Text></View>
+                <View>
+                  <Text style={styles.patientTitle}>Patient / Attendant</Text>
+                  <Text style={styles.patientSub}>View your transfer records</Text>
+                </View>
+              </View>
+
+              <Text style={styles.inputLabel}>PHONE NUMBER</Text>
+              <View style={styles.phoneRowBox}>
+                <View style={styles.prefixBox}><Text style={styles.prefixText}>+91</Text></View>
+                <TextInput
+                  value={phone}
+                  onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="98765 43210"
+                  placeholderTextColor={colors.outline}
+                  keyboardType="phone-pad"
+                  style={styles.phoneInput}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, !fieldValid.patientPhone && styles.primaryBtnDisabled]}
+                onPress={handleSendOtpForPatient}
+                disabled={!fieldValid.patientPhone || loading}
+                activeOpacity={0.9}
+              >
+                <Text style={styles.primaryBtnText}>{loading ? 'Sending…' : 'Send OTP  →'}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.orDivider}>
+                <View style={styles.orLine} />
+                <Text style={styles.orText}>OR</Text>
+                <View style={styles.orLine} />
+              </View>
+
+              <TouchableOpacity style={styles.scanBtn} activeOpacity={0.9}>
+                <AppIcon name="camera" size={20} color={colors.onSurface} />
+                <Text style={styles.scanBtnText}>Scan QR Code instead</Text>
+              </TouchableOpacity>
+
+              <View style={styles.infoCard}>
+                <Text style={styles.infoGlyph}>ℹ︎</Text>
+                <Text style={styles.infoCardText}>
+                  Patient access is automatically enabled once a Doctor or EMS Staff initiates a transfer request.
+                  Contact your attending physician if you cannot log in.
+                </Text>
+              </View>
+
+              <Text style={styles.footerBrand}>MEDIRELAY · SECURE HEALTH TRANSFERS</Text>
+              <View style={styles.footerLinksRow}>
+                <Text style={styles.footerLink}>Privacy Policy</Text>
+                <Text style={styles.footerLink}>Support</Text>
+              </View>
+            </View>
+          )}
+
+          {screen === SCREENS.HEALTHCARE_SIGNUP_DETAILS && (
+            <View style={{ width: '100%' }}>
+              <TouchableOpacity onPress={() => setScreen(SCREENS.HEALTHCARE_LOGIN)} style={styles.backIconRow}>
+                <AppIcon name="back" size={24} color={colors.onSurface} />
+              </TouchableOpacity>
+
+              <View style={styles.stepHeaderRow}>
+                <Text style={styles.stepLabel}>STEP 1/3</Text>
+                <Text style={styles.stepRight}>YOUR DETAILS</Text>
+              </View>
+              <View style={styles.stepBarsWrap}>
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+                <View style={styles.stepBar} />
+                <View style={styles.stepBar} />
+              </View>
+
+              <Text style={styles.signupTitle}>Create Account</Text>
+              <Text style={styles.signupSub}>Fill in your details</Text>
+
+              <Text style={styles.inputLabel}>FULL NAME</Text>
+              <TextInput
+                style={styles.singleInput}
+                value={name}
+                onChangeText={setName}
+                placeholder="Enter your full name"
+                placeholderTextColor={colors.outline}
+              />
+
+              <Text style={styles.inputLabel}>ROLE</Text>
+              <View style={styles.roleSegmentRow}>
+                {['Doctor', 'Nurse'].map((item) => (
+                  <TouchableOpacity
+                    key={item}
+                    style={[styles.segmentBtn, role === item && styles.segmentBtnActiveLight]}
+                    onPress={() => setRole(item)}
+                  >
+                    <Text style={[styles.segmentTextDark, role === item && styles.segmentTextDarkActive]}>{item}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={styles.inputLabel}>HOSPITAL NAME</Text>
+              <TextInput
+                style={styles.singleInput}
+                value={hospital}
+                onChangeText={setHospital}
+                placeholder="Search for your hospital"
+                placeholderTextColor={colors.outline}
+              />
+
+              <View style={styles.labelWithInfo}>
+                <Text style={styles.inputLabel}>COUNCIL REG. NO.</Text>
+                <Text style={styles.infoTiny}>ⓘ</Text>
+              </View>
+              <TextInput
+                style={styles.singleInput}
+                value={councilNo}
+                onChangeText={setCouncilNo}
+                placeholder="e.g. GMC-1234567"
+                placeholderTextColor={colors.outline}
+              />
+              <Text style={styles.helperText}>Required for professional verification via national registry.</Text>
+
+              <Text style={styles.inputLabel}>PHONE NUMBER</Text>
+              <View style={styles.phoneRowBox}>
+                <View style={styles.prefixBox}><Text style={styles.prefixText}>+44</Text></View>
+                <TextInput
+                  value={phone}
+                  onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
+                  placeholder="7700 900000"
+                  placeholderTextColor={colors.outline}
+                  keyboardType="phone-pad"
+                  style={styles.phoneInput}
+                />
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, !fieldValid.signupDetails && styles.primaryBtnDisabled]}
+                onPress={handleSignupNext}
+                disabled={!fieldValid.signupDetails}
+              >
+                <Text style={styles.primaryBtnText}>Next  →</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.footerTinyDark}>
+                By creating an account, you agree to our <Text style={styles.linkInline}>Clinical Guidelines</Text> and <Text style={styles.linkInline}>Data Protocol</Text>.
+              </Text>
+            </View>
+          )}
+
+          {screen === SCREENS.OTP_VERIFY && (
+            <View style={{ width: '100%' }}>
+              <View style={styles.stepHeaderRowOtp}>
+                <Text style={styles.stepLabel}>VERIFY PHONE</Text>
+                <Text style={styles.stepRight}>Step 2 of 3</Text>
+              </View>
+              <View style={styles.stepBarsWrap}>
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+                <View style={styles.stepBar} />
+              </View>
+
+              <Text style={styles.otpBrand}>MEDIRELAY</Text>
+              <View style={styles.otpIconCircle}><Text style={styles.otpIconGlyph}>📶</Text></View>
+
+              <Text style={styles.otpTitle}>Verify Your Number</Text>
+              <Text style={styles.otpSub}>OTP sent to {maskedPhone}</Text>
+
+              <View style={{ marginTop: spacing[6], alignItems: 'center' }}>
+                <OTPBoxes value={otp} onChange={setOtp} length={6} />
+              </View>
+
+              <View style={styles.resendWrap}>
+                {resendTimer > 0 ? (
+                  <Text style={styles.resendText}>Resend in 0:{String(resendTimer).padStart(2, '0')}</Text>
+                ) : (
+                  <TouchableOpacity onPress={() => { setResendTimer(30); setOtp(''); }}>
+                    <Text style={styles.resendAction}>Resend OTP</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, otp.length < 6 && styles.primaryBtnDisabled]}
+                onPress={handleVerifyOtp}
+                disabled={otp.length < 6 || loading}
+              >
+                <Text style={styles.primaryBtnText}>{loading ? 'Verifying…' : 'Verify  →'}</Text>
+              </TouchableOpacity>
+
+              <View style={styles.otpExpirePill}>
+                <View style={styles.redDot} />
+                <Text style={styles.otpExpireText}>OTP EXPIRES IN {Math.floor(otpExpireTimer / 60)}:{String(otpExpireTimer % 60).padStart(2, '0')}</Text>
+              </View>
+            </View>
+          )}
+
+          {screen === SCREENS.SET_PASSWORD && (
+            <View style={{ width: '100%' }}>
+              <Text style={styles.otpBrand}>MEDIRELAY</Text>
+
+              <View style={styles.stepHeaderRowOtp}>
+                <Text style={styles.stepLabel}>STEP 3 OF 3</Text>
+                <Text style={styles.stepRight}>SET PASSWORD</Text>
+              </View>
+              <View style={styles.stepBarsWrap}>
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+                <View style={[styles.stepBar, styles.stepBarActive]} />
+              </View>
+
+              <Text style={styles.signupTitle}>Secure Your Account</Text>
+              <Text style={styles.signupSub}>Set a strong password</Text>
+
+              <Text style={styles.inputLabel}>PASSWORD</Text>
+              <View style={styles.passwordRowBoxLarge}>
+                <TextInput
+                  value={signupPassword}
+                  onChangeText={setSignupPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.outline}
+                  secureTextEntry={!showSignupPassword}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity onPress={() => setShowSignupPassword((s) => !s)}>
+                  <Text style={styles.eyeGlyph}>{showSignupPassword ? '🙈' : '👁️'}</Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.strengthBarsRow}>
+                {[1, 2, 3, 4].map((i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.strengthBar,
+                      i <= passwordStrength ? styles.strengthBarOn : styles.strengthBarOff,
+                    ]}
+                  />
+                ))}
+              </View>
+              <View style={styles.strengthCaptionRow}>
+                <Text style={styles.strengthLabel}>STRONG SECURITY</Text>
+                <Text style={styles.strengthPct}>{Math.round((passwordStrength / 4) * 100)}%</Text>
+              </View>
+
+              <Text style={styles.inputLabel}>CONFIRM PASSWORD</Text>
+              <View style={styles.passwordRowBoxLarge}>
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="••••••••"
+                  placeholderTextColor={colors.outline}
+                  secureTextEntry={!showConfirmPassword}
+                  style={styles.passwordInput}
+                />
+                <TouchableOpacity onPress={() => setShowConfirmPassword((s) => !s)}>
+                  <Text style={styles.eyeGlyph}>{showConfirmPassword ? '🙈' : '👁️'}</Text>
+                </TouchableOpacity>
+              </View>
+              {confirmPassword.length > 0 && (
+                <Text style={[styles.matchText, { color: passwordsMatch ? '#047857' : colors.error }]}>
+                  {passwordsMatch ? 'Passwords match perfectly' : "Passwords don't match"}
+                </Text>
+              )}
+
+              <TouchableOpacity
+                style={[styles.primaryBtn, !fieldValid.signupPassword && styles.primaryBtnDisabled]}
+                onPress={handleCreateAccount}
+                disabled={!fieldValid.signupPassword}
+              >
+                <Text style={styles.primaryBtnText}>Create Account  →</Text>
+              </TouchableOpacity>
+
+              <View style={styles.securityCard}>
+                <Text style={styles.securityTitle}>SECURITY REQUIREMENTS</Text>
+                <Text style={styles.securityItem}>✹  Minimum 12 characters</Text>
+                <Text style={styles.securityItem}>✹  One uppercase & one special character</Text>
+                <Text style={styles.securityItemOff}>○  Does not contain your name or email</Text>
+              </View>
+
+              <View style={styles.footerLinksRow}>
+                <Text style={styles.footerLink}>TERMS OF SERVICE</Text>
+                <Text style={styles.footerLink}>PRIVACY POLICY</Text>
+              </View>
+            </View>
+          )}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -210,32 +616,631 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: {
     flexGrow: 1,
-    padding: spacing[6],
-    justifyContent: 'center',
+    paddingHorizontal: spacing[6],
+    paddingVertical: spacing[5],
   },
-  logoBlock: { alignItems: 'center', marginBottom: spacing[8] },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.secondaryContainer,
+  brandRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[5],
+  },
+  brandWordmark: {
+    fontSize: 42 / 2,
+    letterSpacing: 1,
+    color: '#0A1628',
+    fontWeight: '800',
+  },
+  helpCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: '#dce7fb',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  changeNumberRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  card: {
-    backgroundColor: colors.surfaceContainerLowest,
-    borderRadius: radius.xl,
-    padding: spacing[6],
+  helpText: {
+    fontSize: 26 / 1.6,
+    fontWeight: '800',
+    color: '#0A1628',
   },
-  resendRow: { alignItems: 'center' },
-  roleRow: { flexDirection: 'row', gap: spacing[3] },
-  roleBtn: {
+  rolePickCenter: {
     flex: 1,
-    height: 48,
-    borderRadius: radius.md,
+    justifyContent: 'center',
+    paddingBottom: spacing[10],
+  },
+  rolePickHeading: {
+    ...typography.displayMd,
+    color: '#0A1628',
+    textAlign: 'center',
+    marginBottom: spacing[2],
+    fontWeight: '700',
+  },
+  rolePickSub: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+    textAlign: 'center',
+    marginBottom: spacing[6],
+  },
+  roleOptionCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#111827',
+    backgroundColor: '#f7f8fc',
+    borderRadius: 22,
+    padding: spacing[4],
+    marginBottom: spacing[4],
+    gap: spacing[3],
+  },
+  roleIconBox: {
+    width: 64,
+    height: 64,
+    borderRadius: 14,
+    backgroundColor: '#e9edf9',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+  },
+  roleIconGlyph: {
+    fontSize: 27 / 1.4,
+    color: '#0A1628',
+  },
+  roleOptionTitle: {
+    ...typography.headlineSm,
+    color: '#0A1628',
+    fontWeight: '700',
+  },
+  roleOptionSub: {
+    ...typography.bodyMd,
+    color: colors.onSurfaceVariant,
+  },
+  bottomCaption: {
+    textAlign: 'center',
+    color: '#8e95a3',
+    letterSpacing: 2,
+    marginBottom: spacing[2],
+    ...typography.labelMd,
+  },
+  portalHeader: {
+    backgroundColor: '#0A1628',
+    borderBottomLeftRadius: 52,
+    borderBottomRightRadius: 52,
+    minHeight: 210,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: -spacing[6],
+    marginTop: -spacing[5],
+    marginBottom: -40,
+    paddingTop: spacing[8],
+  },
+  portalBackBtn: {
+    position: 'absolute',
+    top: spacing[6],
+    right: spacing[6],
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  portalTitle: {
+    fontSize: 50 / 2,
+    fontWeight: '800',
+    letterSpacing: 1,
+    color: '#fff',
+    marginBottom: spacing[2],
+  },
+  portalSubtitle: {
+    ...typography.headlineSm,
+    color: 'rgba(255,255,255,0.75)',
+  },
+  sheetCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    padding: spacing[5],
+    ...shadow.md,
+    marginBottom: spacing[6],
+  },
+  roleSegmentRow: {
+    flexDirection: 'row',
+    backgroundColor: '#e9edf8',
+    borderRadius: 14,
+    padding: 4,
+    marginBottom: spacing[5],
+    gap: spacing[1],
+  },
+  segmentBtn: {
+    flex: 1,
+    height: 52,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  segmentBtnActive: {
+    backgroundColor: '#0A1628',
+  },
+  segmentBtnActiveLight: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#dbe1f0',
+  },
+  segmentText: {
+    ...typography.headlineSm,
+    color: '#5b6271',
+    fontWeight: '700',
+  },
+  segmentTextActive: {
+    color: '#fff',
+  },
+  segmentTextDark: {
+    ...typography.headlineSm,
+    color: '#414756',
+    fontWeight: '700',
+  },
+  segmentTextDarkActive: {
+    color: '#0A1628',
+  },
+  inputLabel: {
+    ...typography.labelSm,
+    color: '#313744',
+    marginBottom: spacing[2],
+    letterSpacing: 1.5,
+  },
+  phoneRowBox: {
+    flexDirection: 'row',
+    height: 58,
+    borderRadius: 14,
+    overflow: 'hidden',
+    marginBottom: spacing[5],
+    backgroundColor: '#edf1fb',
+    borderWidth: 1,
+    borderColor: '#dbe1ef',
+  },
+  prefixBox: {
+    width: 94,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#d6ddeb',
+  },
+  prefixText: {
+    ...typography.headlineSm,
+    color: '#0A1628',
+    fontWeight: '700',
+  },
+  phoneInput: {
+    flex: 1,
+    paddingHorizontal: spacing[4],
+    color: '#0A1628',
+    fontSize: 36 / 2,
+    fontWeight: '500',
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing[2],
+  },
+  forgotText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#047857',
+    letterSpacing: 1,
+  },
+  passwordRowBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 58,
+    borderRadius: 14,
+    paddingHorizontal: spacing[4],
+    marginBottom: spacing[6],
+    backgroundColor: '#edf1fb',
+    borderWidth: 1,
+    borderColor: '#dbe1ef',
+  },
+  passwordRowBoxLarge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 58,
+    borderRadius: 14,
+    paddingHorizontal: spacing[4],
+    marginBottom: spacing[4],
+    backgroundColor: '#edf1fb',
+    borderWidth: 1,
+    borderColor: '#dbe1ef',
+  },
+  passwordInput: {
+    flex: 1,
+    color: '#0A1628',
+    fontSize: 18,
+    fontWeight: '500',
+  },
+  eyeGlyph: {
+    fontSize: 18,
+    opacity: 0.6,
+  },
+  primaryBtn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#0A1628',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: spacing[4],
+    ...shadow.sm,
+  },
+  primaryBtnDisabled: {
+    opacity: 0.45,
+  },
+  primaryBtnText: {
+    color: '#fff',
+    fontSize: 35 / 2,
+    fontWeight: '700',
+  },
+  outlineBtn: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#0A1628',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  outlineBtnText: {
+    color: '#0A1628',
+    fontSize: 34 / 2,
+    fontWeight: '700',
+  },
+  footerLegal: {
+    textAlign: 'center',
+    color: '#3d4250',
+    letterSpacing: 2,
+    ...typography.labelMd,
+    marginBottom: spacing[2],
+  },
+  footerTiny: {
+    textAlign: 'center',
+    color: '#7a8090',
+    ...typography.bodySm,
+    marginBottom: spacing[4],
+  },
+  patientHero: {
+    borderRadius: 28,
+    backgroundColor: '#10223e',
+    padding: spacing[6],
+    marginTop: spacing[2],
+    marginBottom: spacing[5],
+  },
+  patientHeroTitle: {
+    fontSize: 62 / 2,
+    lineHeight: 70 / 2,
+    color: '#fff',
+    fontWeight: '800',
+    marginBottom: spacing[2],
+  },
+  patientHeroSub: {
+    ...typography.headlineSm,
+    color: 'rgba(255,255,255,0.4)',
+  },
+  patientRowTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[3],
+    marginBottom: spacing[5],
+  },
+  patientTitle: {
+    ...typography.displayMd,
+    color: '#0A1628',
+    fontSize: 56 / 2,
+    fontWeight: '700',
+  },
+  patientSub: {
+    ...typography.headlineSm,
+    color: colors.onSurfaceVariant,
+  },
+  orDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: spacing[5],
+    marginTop: spacing[1],
+  },
+  orLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#d6deef',
+  },
+  orText: {
+    marginHorizontal: spacing[4],
+    color: '#606676',
+    ...typography.labelMd,
+  },
+  scanBtn: {
+    height: 56,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: '#0A1628',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginBottom: spacing[6],
+  },
+  scanBtnText: {
+    color: '#0A1628',
+    fontSize: 36 / 2,
+    fontWeight: '700',
+  },
+  infoCard: {
+    backgroundColor: '#edf1fb',
+    borderRadius: 20,
+    padding: spacing[4],
+    borderLeftWidth: 4,
+    borderLeftColor: '#87c8b6',
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: spacing[8],
+  },
+  infoGlyph: {
+    fontSize: 16,
+    color: '#0f766e',
+    marginTop: 2,
+    marginRight: spacing[2],
+  },
+  infoCardText: {
+    flex: 1,
+    color: '#3f4654',
+    fontSize: 30 / 2,
+    lineHeight: 46 / 2,
+    fontWeight: '500',
+  },
+  footerBrand: {
+    textAlign: 'center',
+    color: '#596071',
+    letterSpacing: 2,
+    ...typography.labelMd,
+    marginBottom: spacing[4],
+  },
+  footerLinksRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: spacing[8],
+    marginBottom: spacing[3],
+  },
+  footerLink: {
+    color: '#2f3644',
+    ...typography.titleMd,
+  },
+  backIconRow: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    marginBottom: spacing[3],
+  },
+  stepHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[2],
+  },
+  stepHeaderRowOtp: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: spacing[1],
+    marginBottom: spacing[2],
+  },
+  stepLabel: {
+    color: '#111827',
+    fontWeight: '700',
+    ...typography.headlineSm,
+    fontStyle: 'italic',
+  },
+  stepRight: {
+    color: '#313744',
+    fontWeight: '700',
+    ...typography.headlineSm,
+  },
+  stepBarsWrap: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginBottom: spacing[6],
+  },
+  stepBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#cfd6e8',
+  },
+  stepBarActive: {
+    backgroundColor: '#0A1628',
+  },
+  signupTitle: {
+    color: '#0A1628',
+    fontSize: 64 / 2,
+    lineHeight: 74 / 2,
+    fontWeight: '800',
+    marginBottom: spacing[1],
+  },
+  signupSub: {
+    ...typography.headlineSm,
+    color: '#444b5a',
+    marginBottom: spacing[4],
+  },
+  singleInput: {
+    height: 58,
+    borderRadius: 14,
+    backgroundColor: '#edf1fb',
+    borderWidth: 1,
+    borderColor: '#dbe1ef',
+    paddingHorizontal: spacing[4],
+    color: '#0A1628',
+    fontSize: 34 / 2,
+    marginBottom: spacing[4],
+  },
+  labelWithInfo: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: spacing[2],
+  },
+  infoTiny: {
+    color: '#6b7280',
+    fontSize: 16,
+  },
+  helperText: {
+    ...typography.bodyMd,
+    color: '#676f7f',
+    marginTop: -spacing[2],
+    marginBottom: spacing[4],
+  },
+  footerTinyDark: {
+    textAlign: 'center',
+    ...typography.bodyMd,
+    color: '#666d7c',
+    marginBottom: spacing[3],
+  },
+  linkInline: {
+    color: '#111827',
+    textDecorationLine: 'underline',
+    fontWeight: '700',
+  },
+  otpBrand: {
+    textAlign: 'center',
+    fontSize: 56 / 2,
+    color: '#0A1628',
+    fontWeight: '800',
+    letterSpacing: 1,
+    marginBottom: spacing[4],
+  },
+  otpIconCircle: {
+    width: 136,
+    height: 136,
+    borderRadius: 68,
+    backgroundColor: '#0A1628',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: spacing[5],
+    ...shadow.sm,
+  },
+  otpIconGlyph: {
+    fontSize: 34,
+    color: '#fff',
+  },
+  otpTitle: {
+    textAlign: 'center',
+    fontSize: 60 / 2,
+    lineHeight: 68 / 2,
+    color: '#0A1628',
+    fontWeight: '800',
+    marginBottom: spacing[2],
+  },
+  otpSub: {
+    textAlign: 'center',
+    color: '#3e4554',
+    ...typography.displayMd,
+    fontSize: 48 / 2,
+    marginBottom: spacing[2],
+  },
+  resendWrap: {
+    alignItems: 'center',
+    marginTop: spacing[6],
+    marginBottom: spacing[6],
+  },
+  resendText: {
+    ...typography.displayMd,
+    color: '#2f3644',
+    fontSize: 44 / 2,
+  },
+  resendAction: {
+    ...typography.titleMd,
+    textDecorationLine: 'underline',
+    color: '#0A1628',
+  },
+  otpExpirePill: {
+    alignSelf: 'center',
+    marginTop: spacing[6],
+    backgroundColor: '#dce7fb',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2],
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[2],
+  },
+  redDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#d11a2a',
+  },
+  otpExpireText: {
+    color: '#0A1628',
+    fontWeight: '800',
+    letterSpacing: 1,
+    ...typography.titleSm,
+  },
+  strengthBarsRow: {
+    flexDirection: 'row',
+    gap: spacing[2],
+    marginBottom: spacing[2],
+  },
+  strengthBar: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+  },
+  strengthBarOn: {
+    backgroundColor: '#047857',
+  },
+  strengthBarOff: {
+    backgroundColor: '#cfd6e8',
+  },
+  strengthCaptionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: spacing[5],
+  },
+  strengthLabel: {
+    color: '#047857',
+    fontWeight: '700',
+    ...typography.titleSm,
+  },
+  strengthPct: {
+    color: '#2f3644',
+    fontWeight: '700',
+    ...typography.titleMd,
+  },
+  matchText: {
+    ...typography.headlineSm,
+    marginTop: -spacing[2],
+    marginBottom: spacing[4],
+  },
+  securityCard: {
+    backgroundColor: '#e9edf8',
+    borderRadius: 22,
+    padding: spacing[5],
+    marginTop: spacing[4],
+    marginBottom: spacing[6],
+  },
+  securityTitle: {
+    ...typography.labelSm,
+    color: '#6b7280',
+    letterSpacing: 2,
+    marginBottom: spacing[3],
+  },
+  securityItem: {
+    ...typography.displayMd,
+    fontSize: 40 / 2,
+    color: '#2f3644',
+    marginBottom: spacing[2],
+  },
+  securityItemOff: {
+    ...typography.displayMd,
+    fontSize: 40 / 2,
+    color: '#2f3644',
+    opacity: 0.8,
   },
 });
