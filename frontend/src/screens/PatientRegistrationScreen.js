@@ -10,8 +10,11 @@ import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { setState, getState } from '../store';
+<<<<<<< HEAD
 import { buildPatientCreatePayload, createPatient } from '../api/patients';
 import { getStoredDoctorId } from '../storage/authStorage';
+=======
+>>>>>>> a739f67 (Revert "Integrate backend APIs and simplify auth flow for testing")
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
 const RELATIONS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Other'];
@@ -81,8 +84,9 @@ export default function PatientRegistrationScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!validate()) return;
+<<<<<<< HEAD
     const doctorId = getState()?.doctor?.userId || await getStoredDoctorId();
 
     if (!doctorId) {
@@ -113,6 +117,18 @@ export default function PatientRegistrationScreen({ navigation }) {
     } catch (error) {
       setErrors((prev) => ({ ...prev, save: error?.message || 'Failed to save patient' }));
     }
+=======
+    const newPatient = {
+      id: 'P' + Date.now(),
+      name, age: Number(age), sex, bloodGroup, phone,
+      emergencyContact: { name: ecName, phone: ecPhone, relation: ecRelation },
+      allergies: noAllergies ? [] : allergies,
+      conditions,
+      medications: noMeds ? [] : medications,
+    };
+    setState((s) => ({ ...s, patients: [...s.patients, newPatient] }));
+    navigation.goBack();
+>>>>>>> a739f67 (Revert "Integrate backend APIs and simplify auth flow for testing")
   };
 
   return (
@@ -252,7 +268,10 @@ export default function PatientRegistrationScreen({ navigation }) {
 
           <View style={{ height: spacing[8] }} />
           <PrimaryButton label="Save Patient" onPress={handleSave} />
+<<<<<<< HEAD
           {errors.save ? <Text style={styles.errorText}>{errors.save}</Text> : null}
+=======
+>>>>>>> a739f67 (Revert "Integrate backend APIs and simplify auth flow for testing")
           <View style={{ height: spacing[8] }} />
         </ScrollView>
       </KeyboardAvoidingView>

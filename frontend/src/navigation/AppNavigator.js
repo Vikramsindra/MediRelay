@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,9 +15,12 @@ import QRDisplayScreen from '../screens/QRDisplayScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import RecordViewerScreen from '../screens/RecordViewerScreen';
 import BottomTabBar from './BottomTabBar';
+<<<<<<< HEAD
 import { logoutUser } from '../api/auth';
 import { clearAuthSession, loadAuthSession } from '../storage/authStorage';
 import { getState, setState } from '../store';
+=======
+>>>>>>> a739f67 (Revert "Integrate backend APIs and simplify auth flow for testing")
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -64,6 +67,7 @@ export default function AppNavigator() {
     }
   };
 
+<<<<<<< HEAD
   useEffect(() => {
     let mounted = true;
 
@@ -100,6 +104,8 @@ export default function AppNavigator() {
 
   if (isBootstrapping) return null;
 
+=======
+>>>>>>> a739f67 (Revert "Integrate backend APIs and simplify auth flow for testing")
   return (
     <NavigationContainer>
       <Stack.Navigator screenOptions={{ headerShown: false, animation: 'slide_from_right' }}>
