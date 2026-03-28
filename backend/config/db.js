@@ -1,10 +1,20 @@
+const path = require("path");
+require("dotenv").config({ path: path.resolve(__dirname, "../.env") });
 const mongoose = require("mongoose");
 
 const mongoURI = process.env.MONGODB_URI;
 
+if (!mongoURI) {
+    console.error(
+        " MongoDB connection error: MONGODB_URI is not defined."
+        + " Make sure .env is present and contains MONGODB_URI."
+    );
+    process.exit(1);
+}
+
 async function connectToDb() {
     try {
-        await mongoose.connect("mongodb://127.0.0.1:27017/medirelay");
+        await mongoose.connect(mongoURI);
 
         console.log(" MongoDB connected successfully");
     } catch (error) {
@@ -12,5 +22,4 @@ async function connectToDb() {
         process.exit(1); // exit if DB fails
     }
 }
-
 module.exports = connectToDb;
