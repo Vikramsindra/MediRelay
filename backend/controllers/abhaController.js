@@ -1,13 +1,18 @@
-// ─── ALL IMPORTS (this was the core bug — every one of these was missing) ───
-const User          = require("../models/UserModel");
-const Patient       = require("../models/PatientModel");
+// ─── ALL IMPORTS ────────────────────────────────────────────────────────────
+const User = require("../models/UserModel");
+const Patient = require("../models/PatientModel");
 const generateToken = require("../utils/generateToken");
+
+// Switch between mock (dummy OTP) and real ABDM service via .env
 const {
     generateMobileOTP,
     verifyMobileOTP,
     getABHAProfile,
     searchByABHAId,
-} = require("../utils/abhaService");
+} = process.env.USE_MOCK === "true"
+        ? require("../services/mockAbhaService")
+        : require("../utils/abhaService");
+
 
 // In-memory transaction store — maps txnId → { mobile, expiresAt }
 // Replace with Redis in production for multi-instance deployments
@@ -46,7 +51,7 @@ exports.sendOTP = async (req, res) => {
 
         res.json({
             success: true,
-            txnId:   data.txnId,
+            txnId: data.txnId,
             message: "OTP sent to your ABDM-registered mobile number",
         });
 
@@ -55,7 +60,7 @@ exports.sendOTP = async (req, res) => {
         res.status(502).json({
             success: false,
             message: "Failed to send OTP. Check your ABDM sandbox credentials.",
-            detail:  err.response?.data,
+            detail: err.response?.data,
         });
     }
 };
@@ -111,11 +116,11 @@ exports.verifyOTP = async (req, res) => {
 
         if (!user) {
             user = await User.create({
-                name:    profile.name,
-                role:    "patient",
-                abhaId:  profile.healthIdNumber,
-                phone:   profile.mobile,
-                email:   profile.email || `${profile.healthIdNumber.replace(/-/g, "")}@abha.in`,
+                name: profile.name,
+                role: "patient",
+                abhaId: profile.healthIdNumber,
+                phone: profile.mobile,
+                email: profile.email || `${profile.healthIdNumber.replace(/-/g, "")}@abha.in`,
                 // No password — ABHA users authenticate via OTP only
                 password: "ABHA_NO_PASSWORD", // non-empty to pass schema validation
                 isActive: true,
@@ -127,25 +132,25 @@ exports.verifyOTP = async (req, res) => {
 
         if (!patient) {
             patient = await Patient.create({
-                fullName:       profile.name,
-                abhaId:         profile.healthIdNumber,
-                abhaAddress:    profile.healthId,
-                phone:          profile.mobile,
+                fullName: profile.name,
+                abhaId: profile.healthIdNumber,
+                abhaAddress: profile.healthId,
+                phone: profile.mobile,
                 gender:
                     profile.gender === "M" ? "male" :
-                    profile.gender === "F" ? "female" : "other",
-                dateOfBirth:    profile.yearOfBirth
+                        profile.gender === "F" ? "female" : "other",
+                dateOfBirth: profile.yearOfBirth
                     ? new Date(`${profile.yearOfBirth}-01-01`)
                     : undefined,
-                userId:         user._id,
-                abhaVerified:   true,
+                userId: user._id,
+                abhaVerified: true,
                 abhaVerifiedAt: new Date(),
             });
         } else {
             // Refresh any updated ABDM data
-            patient.abhaAddress    = profile.healthId;
-            patient.userId         = user._id;
-            patient.abhaVerified   = true;
+            patient.abhaAddress = profile.healthId;
+            patient.userId = user._id;
+            patient.abhaVerified = true;
             patient.abhaVerifiedAt = new Date();
             await patient.save();
         }
@@ -157,11 +162,11 @@ exports.verifyOTP = async (req, res) => {
             success: true,
             token,
             user: {
-                _id:    user._id,
-                name:   user.name,
-                role:   user.role,
+                _id: user._id,
+                name: user.name,
+                role: user.role,
                 abhaId: user.abhaId,
-                phone:  user.phone,
+                phone: user.phone,
             },
             patient,
         });
@@ -171,7 +176,7 @@ exports.verifyOTP = async (req, res) => {
         res.status(502).json({
             success: false,
             message: "OTP verification failed",
-            detail:  err.response?.data,
+            detail: err.response?.data,
         });
     }
 };
@@ -195,17 +200,17 @@ exports.fetchPatientByABHA = async (req, res) => {
 
         // 3️⃣ Auto-create patient from ABDM data
         const newPatient = await Patient.create({
-            fullName:       abdmData.name || "Unknown",
-            abhaId:         abdmData.healthIdNumber || abhaId,
-            abhaAddress:    abdmData.healthId,
-            phone:          abdmData.mobile,
+            fullName: abdmData.name || "Unknown",
+            abhaId: abdmData.healthIdNumber || abhaId,
+            abhaAddress: abdmData.healthId,
+            phone: abdmData.mobile,
             gender:
                 abdmData.gender === "M" ? "male" :
-                abdmData.gender === "F" ? "female" : "other",
-            dateOfBirth:    abdmData.yearOfBirth
+                    abdmData.gender === "F" ? "female" : "other",
+            dateOfBirth: abdmData.yearOfBirth
                 ? new Date(`${abdmData.yearOfBirth}-01-01`)
                 : undefined,
-            abhaVerified:   true,
+            abhaVerified: true,
             abhaVerifiedAt: new Date(),
         });
 
@@ -222,7 +227,7 @@ exports.fetchPatientByABHA = async (req, res) => {
         res.status(502).json({
             success: false,
             message: "ABDM lookup failed",
-            detail:  err.response?.data,
+            detail: err.response?.data,
         });
     }
 };

@@ -1,7 +1,31 @@
 const TransferRecord = require("../models/TransferRecord");
 const generateQR = require("../utils/generateQR");
 const crypto = require("crypto");
+const {
+  extractVitalsFromText,
+  autoDetectSeverity,
+} = require("../utils/vitalsHelper");
+// 🧪 Parse Vitals API
+exports.parseVitals = async (req, res) => {
+  try {
+    const { text, chiefComplaint } = req.body;
 
+    const vitals = extractVitalsFromText(text);
+    const severity = autoDetectSeverity(vitals, chiefComplaint);
+
+    res.status(200).json({
+      success: true,
+      vitals,
+      severity,
+    });
+
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 exports.createTransfer = async (req, res) => {
     try {
         const newTransfer = new TransferRecord(req.body);

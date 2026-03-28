@@ -1,11 +1,12 @@
 const express = require("express");
 const router = express.Router();
-
+const { getPatientHistory } = require("../controllers/abhaHistoryController");
 const Transfer = require("../models/TransferRecord");   // fixed filename (was trasferRecord)
 const Patient = require("../models/PatientModel");
 const { protect, restrictTo, optionalAuth } = require("../middleware/authMiddleware");
 const { generateQRCode, getShareUrl } = require("../utils/generateQR");
-
+const { extractVitalsFromText, autoDetectSeverity } = require("../utils/vitalsHelper");
+const { parseVitals } = require("../controllers/transferController");
 // ─────────────────────────────────────────────────────────────────
 // IMPORTANT: /share/:shareId MUST be defined BEFORE /:id
 // Otherwise Express matches "share" as a MongoDB ObjectId → CastError crash
@@ -108,7 +109,7 @@ router.get("/timeline/:abhaId", protect, async (req, res) => {
         res.status(500).json({ success: false, message: error.message });
     }
 });
-
+router.get("/history/:abhaId", protect, getPatientHistory);
 // ─────────────────────────────────────────────────────────
 // GET /api/v1/transfers
 // Doctors → all transfers (filter by patientId or abhaId)
@@ -142,6 +143,13 @@ router.get("/", protect, async (req, res) => {
     }
 });
 
+
+// ─────────────────────────────────────────────────────────
+// POST /api/v1/transfers/parse-vitals
+// Parse free-text vitals and auto-detect severity (no auth)
+// ─────────────────────────────────────────────────────────
+router.post("/parse-vitals", parseVitals);
+
 // ─────────────────────────────────────────────────────────
 // POST /api/v1/transfers
 // Doctor creates a new transfer record
@@ -158,6 +166,7 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
             reasonForTransfer,
             diagnosis,
             vitals,
+            vitalsText,
             activeMedications,
             clinicalSummary,
             pendingInvestigations,
@@ -178,6 +187,14 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
 
         const shareId = `${patient._id.toString().slice(-6)}-${Date.now().toString(36)}`;
 
+        // ─── Auto-parse vitals from free text (if provided) ──────────
+        const parsedVitals = vitalsText ? extractVitalsFromText(vitalsText) : {};
+        const mergedVitals = { ...parsedVitals, ...(vitals || {}) }; // manual fields override parsed
+
+        // ─── Auto-detect severity (use manual if provided) ───────────
+        const autoSeverity = autoDetectSeverity(mergedVitals, chiefComplaint);
+        const finalSeverity = severity || autoSeverity;
+
         const transfer = await Transfer.create({
             patient: {
                 _id: patient._id,
@@ -196,10 +213,10 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
             receivingHospital,
             chiefComplaint,
             conditionCategory,
-            severity,
+            severity: finalSeverity,
             reasonForTransfer,
             diagnosis,
-            vitals: vitals || {},
+            vitals: mergedVitals,
             activeMedications: meds,
             criticalMedications,
             allergies: patient.knownAllergies || [],
@@ -226,6 +243,10 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
             data: transfer,
             shareUrl,
             qrCodeUrl,
+            autoDetected: {
+                severity: autoSeverity,
+                vitals: parsedVitals,
+            },
         });
     } catch (error) {
         console.error(error);
@@ -336,7 +357,10 @@ router.patch("/:id/acknowledge", protect, restrictTo("doctor"), async (req, res)
         transfer.status = "acknowledged";
         await transfer.save();
 
-        res.status(200).json({ success: true, data: transfer });
+        res.status(200).json({
+            success: true,
+            data: transfer,
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

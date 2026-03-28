@@ -1,84 +1,144 @@
-const axios = require("axios");
+// ─── MOCK ABHA SERVICE ────────────────────────────────────
+// Drop-in replacement for the real abhaService.js
+// Same function names, same return shapes — zero changes needed elsewhere.
+// When real ABDM credentials arrive, delete this file and paste the real one.
 
-const ABDM_BASE = process.env.ABDM_BASE_URL || "https://healthidsbx.abdm.gov.in";
-const ABDM_CLIENT_ID = process.env.ABDM_CLIENT_ID;
-const ABDM_CLIENT_SECRET = process.env.ABDM_CLIENT_SECRET;
+const mockOtpStore = new Map();
 
-let _token = null;
-let _expiry = null;
+// ─── Test patients (mobile → ABHA profile) ────────────────
+const MOCK_PATIENTS = {
+  "9876543210": {
+    healthIdNumber: "91-1234-5678-9012",
+    healthId:       "ravi.kumar@abdm",
+    name:           "Ravi Kumar",
+    yearOfBirth:    "1985",
+    gender:         "M",
+    mobile:         "9876543210",
+    email:          "ravi.kumar@email.com",
+  },
+  "9123456780": {
+    healthIdNumber: "91-9876-5432-1098",
+    healthId:       "priya.sharma@abdm",
+    name:           "Priya Sharma",
+    yearOfBirth:    "1992",
+    gender:         "F",
+    mobile:         "9123456780",
+    email:          "priya.sharma@email.com",
+  },
+  "9000000001": {
+    healthIdNumber: "91-1111-2222-3333",
+    healthId:       "arjun.mehta@abdm",
+    name:           "Arjun Mehta",
+    yearOfBirth:    "1978",
+    gender:         "M",
+    mobile:         "9000000001",
+    email:          "arjun.mehta@email.com",
+  },
+};
 
-// 🔐 Get ABDM Access Token
-const getABDMAccessToken = async () => {
-  if (_token && _expiry && Date.now() < _expiry) {
-    return _token;
+// ─── Test patients (ABHA number → profile) ────────────────
+const MOCK_ABHA_LOOKUP = {
+  "91-1234-5678-9012": MOCK_PATIENTS["9876543210"],
+  "91-9876-5432-1098": MOCK_PATIENTS["9123456780"],
+  "91-1111-2222-3333": MOCK_PATIENTS["9000000001"],
+};
+
+// ─── Step 1: Generate OTP ─────────────────────────────────
+const generateMobileOTP = async (mobile) => {
+  const profile = MOCK_PATIENTS[mobile];
+
+  if (!profile) {
+    const err = new Error("Mobile not registered");
+    err.response = {
+      status: 404,
+      data: {
+        code:    "MOCK-1001",
+        message: "Mobile not linked to any ABHA account",
+        hint:    `Use test mobiles: ${Object.keys(MOCK_PATIENTS).join(" | ")}`,
+      },
+    };
+    throw err;
   }
 
-  const res = await axios.post(
-    "https://dev.abdm.gov.in/gateway/v0.5/sessions",
-    {
-      clientId: ABDM_CLIENT_ID,
-      clientSecret: ABDM_CLIENT_SECRET,
-    }
-  );
+  const txnId = `mock-txn-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  mockOtpStore.set(txnId, { mobile, expiresAt: Date.now() + 10 * 60 * 1000 });
 
-  _token = res.data.accessToken;
-  _expiry = Date.now() + (res.data.expiresIn - 60) * 1000;
+  console.log(`[MOCK ABHA] OTP for ${mobile} → use 123456  | txnId: ${txnId}`);
 
-  return _token;
+  return { txnId, message: "[MOCK] OTP sent. Use 123456 for any test number." };
 };
 
-// 📦 Headers
-const abdmHeaders = async () => {
-  const token = await getABDMAccessToken();
-  return {
-    "Content-Type": "application/json",
-    Authorization: `Bearer ${token}`,
-  };
-};
-
-// 📱 Step 1: Send OTP
-const generateMobileOTP = async (mobile) => {
-  const headers = await abdmHeaders();
-
-  const res = await axios.post(
-    `${ABDM_BASE}/api/v2/registration/mobile/login/generateOtp`,
-    { mobile },
-    { headers }
-  );
-
-  return res.data;
-};
-
-// 📱 Step 2: Verify OTP
+// ─── Step 2: Verify OTP ───────────────────────────────────
 const verifyMobileOTP = async (txnId, otp) => {
-  const headers = await abdmHeaders();
+  const txn = mockOtpStore.get(txnId);
 
-  const res = await axios.post(
-    `${ABDM_BASE}/api/v2/registration/mobile/login/verifyOtp`,
-    { txnId, otp },
-    { headers }
-  );
+  if (!txn || Date.now() > txn.expiresAt) {
+    const err = new Error("Transaction expired");
+    err.response = { status: 400, data: { code: "MOCK-1002", message: "Invalid or expired txnId" } };
+    throw err;
+  }
 
-  return res.data;
+  if (otp !== "123456") {
+    const err = new Error("Incorrect OTP");
+    err.response = { status: 400, data: { code: "MOCK-1003", message: "Wrong OTP. Use 123456." } };
+    throw err;
+  }
+
+  mockOtpStore.delete(txnId);
+
+  // Encode mobile into the token so getABHAProfile can resolve the profile
+  return { token: `mock-user-token:${txn.mobile}` };
 };
 
-// 👤 Step 3: Get Profile
+// ─── Step 3: Get ABHA Profile ─────────────────────────────
 const getABHAProfile = async (userToken) => {
-  const res = await axios.get(
-    `${ABDM_BASE}/api/v1/account/profile`,
-    {
-      headers: {
-        "Content-Type": "application/json",
-        "X-Token": `Bearer ${userToken}`,
-      },
-    }
-  );
+  if (!userToken.startsWith("mock-user-token:")) {
+    const err = new Error("Invalid token");
+    err.response = { status: 401, data: { message: "Unauthorized" } };
+    throw err;
+  }
 
-  return res.data;
+  const mobile  = userToken.split(":")[1];
+  const profile = MOCK_PATIENTS[mobile];
+
+  if (!profile) {
+    const err = new Error("Profile not found");
+    err.response = { status: 404, data: { message: "No ABHA profile found" } };
+    throw err;
+  }
+
+  return profile;
 };
+
+// ─── Doctor utility: Lookup by ABHA number ────────────────
+const searchByABHAId = async (abhaId) => {
+  const profile = MOCK_ABHA_LOOKUP[abhaId];
+
+  if (!profile) {
+    const err = new Error("ABHA ID not found");
+    err.response = {
+      status: 404,
+      data: {
+        code:    "MOCK-1004",
+        message: "No record for this ABHA ID",
+        hint:    `Test IDs: ${Object.keys(MOCK_ABHA_LOOKUP).join(" | ")}`,
+      },
+    };
+    throw err;
+  }
+
+  return profile;
+};
+
+// Stubs — kept for API shape compatibility
+const generateABHAOTP = async () => ({ txnId: "mock-abha-txn", message: "OTP sent" });
+const verifyABHAOTP   = async () => ({ token: "mock-abha-verified" });
 
 module.exports = {
   generateMobileOTP,
   verifyMobileOTP,
   getABHAProfile,
-};
+  searchByABHAId,
+  generateABHAOTP,
+  verifyABHAOTP,
+}; 
