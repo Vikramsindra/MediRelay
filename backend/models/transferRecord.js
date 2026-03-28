@@ -136,6 +136,6 @@ const transferRecordSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-const TransferRecord = mongoose.model("TransferRecord", transferRecordSchema);
+const TransferRecord = mongoose.models.TransferRecord || mongoose.model("TransferRecord", transferRecordSchema);
 
 module.exports = TransferRecord;

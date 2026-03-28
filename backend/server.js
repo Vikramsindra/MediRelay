@@ -4,6 +4,7 @@ const cors = require("cors");
 
 const patientRoutes = require("./routes/patientRoutes.js");
 const transferRoutes = require("./routes/transferRoutes.js");
+const userRoutes = require("./routes/userRoutes.js");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -17,6 +18,22 @@ app.get("/test", (req, res) => {
 
 app.use("/api/v1/patients", patientRoutes);
 app.use("/api/v1/transfers", transferRoutes);
+app.use("/api/v1/users", userRoutes);
+
+app.use((req, res) => {
+    res.status(404).json({
+        success: false,
+        message: "Route not found"
+    });
+});
+
+app.use((err, req, res, next) => {
+    console.error(err);
+    res.status(500).json({
+        success: false,
+        message: "Internal server error"
+    });
+});
 
 module.exports = app;
 

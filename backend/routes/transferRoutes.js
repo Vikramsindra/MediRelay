@@ -1,8 +1,11 @@
 const express = require("express");
+const mongoose = require("mongoose");
 const router = express.Router();
 
-const Transfer = require("../models/trasferRecord.js");
+const Transfer = require("../models/transferRecord.js");
 const Patient = require("../models/PatientModel.js");
+
+const BASE_URL = process.env.BACKEND_URL || "http://localhost:8080";
 
 // ==============================
 // 🆕 Create Transfer (Full Data, No Draft)
@@ -24,6 +27,20 @@ router.post("/", async (req, res) => {
             pendingInvestigations,
             modeOfTransfer
         } = req.body;
+
+        if (!patientId || !sendingHospital || !doctorName || !chiefComplaint || !conditionCategory || !severity || !reasonForTransfer) {
+            return res.status(400).json({
+                success: false,
+                message: "patientId, sendingHospital, doctorName, chiefComplaint, conditionCategory, severity, and reasonForTransfer are required"
+            });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(patientId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid patientId"
+            });
+        }
 
         // Fetch patient data from DB
         const patient = await Patient.findById(patientId);
@@ -59,7 +76,7 @@ router.post("/", async (req, res) => {
         res.status(201).json({
             success: true,
             data: transfer,
-            link: `http://localhost:8080/api/v1/transfers/share/${shareId}`
+            link: `${BASE_URL}/api/v1/transfers/share/${shareId}`
         });
 
     } catch (error) {
@@ -72,36 +89,17 @@ router.post("/", async (req, res) => {
 });
 
 // ==============================
-// 🔗 Get Transfer by Share ID (QR / Link)
-// ==============================
-router.get("/share/:shareId", async (req, res) => {
-    try {
-        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-// ==============================
-// 🔄 Update Transfer
+//  Update Transfer
 // ==============================
 router.patch("/:id", async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid transfer ID"
+            });
+        }
+
         const transfer = await Transfer.findByIdAndUpdate(
             req.params.id,
             req.body,
@@ -137,6 +135,12 @@ router.get("/", async (req, res) => {
 
         let query = {};
         if (patientId) {
+            if (!mongoose.Types.ObjectId.isValid(patientId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid patientId"
+                });
+            }
             query = { "patient._id": patientId };
         }
 
@@ -156,10 +160,43 @@ router.get("/", async (req, res) => {
 });
 
 // ==============================
+// � Get Transfer by Share ID (QR / Link)
+// ==============================
+router.get("/share/:shareId", async (req, res) => {
+    try {
+        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
+        if (!transfer) {
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: transfer
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+// ==============================
 // 📄 Get Single Transfer by ID
 // ==============================
 router.get("/:id", async (req, res) => {
     try {
+        if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid transfer ID"
+            });
+        }
+
         const transfer = await Transfer.findById(req.params.id);
         if (!transfer) {
             return res.status(404).json({
