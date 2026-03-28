@@ -9,7 +9,7 @@ const fsPromises = require('fs/promises');
 // 🔐 Gemini Initialization
 // ─────────────────────────────────────────────
 const genAI = new GoogleGenAI({
-    apiKey: "AIzaSyBbVsJ2acGcj2YSM-OVFcmYdberWpvSxzQ",
+    apiKey: process.env.API_KEY,
 });
 
 // ─────────────────────────────────────────────
