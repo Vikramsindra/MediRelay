@@ -8,7 +8,6 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { TransferCard } from '../components/Cards';
 import { SectionLabel } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
-import { SecondaryButton } from '../components/Buttons';
 import { setState, useStore } from '../store';
 import { fetchTransfers } from '../api/transfers';
 import { getStoredDoctorId } from '../storage/authStorage';
@@ -90,12 +89,17 @@ export default function HomeScreen({ navigation, onLogout }) {
             </Text>
           </View>
           <View style={styles.headerRight}>
-            <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#1a6640' : colors.serious }]} />
-            <SecondaryButton
-              label="Logout"
-              iconName="close"
-              onPress={onLogout}
-            />
+            <Text style={[
+              typography.labelSm,
+              styles.onlineStatusText,
+              { color: isOnline ? '#1a6640' : colors.serious },
+            ]}>
+              {isOnline ? 'Online' : 'Offline'}
+            </Text>
+            <TouchableOpacity onPress={onLogout} style={styles.logoutBtn} activeOpacity={0.85}>
+              {/* <AppIcon name="close" size={13} color={colors.onSurfaceVariant} /> */}
+              <Text style={[typography.labelMd, { color: colors.onSurfaceVariant }]}>Logout</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -211,7 +215,20 @@ const styles = StyleSheet.create({
     alignItems: 'flex-end',
     gap: spacing[2],
   },
-  onlineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 8 },
+  logoutBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing[1.5],
+    paddingHorizontal: spacing[2.5],
+    paddingVertical: spacing[1.5],
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceContainerLow,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
+  },
+  onlineStatusText: {
+    marginTop: -2,
+  },
   newTransferBtn: {
     flexDirection: 'row',
     alignItems: 'center',

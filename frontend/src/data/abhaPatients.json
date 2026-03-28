@@ -1,0 +1,206 @@
+[
+  {
+    "abhaId": "91-1000-1000-1000",
+    "name": "Rohan Patil",
+    "age": 42,
+    "sex": "M",
+    "bloodGroup": "B+",
+    "phone": "9876543210",
+    "ecName": "Anita Patil",
+    "ecPhone": "9898989898",
+    "ecRelation": "Spouse",
+    "noAllergies": false,
+    "allergies": [
+      { "allergen": "Penicillin", "reaction": "Rash" }
+    ],
+    "conditions": ["Hypertension"],
+    "noMeds": false,
+    "medications": [
+      { "name": "Amlodipine", "dose": "5mg", "route": "Oral", "frequency": "Once daily" }
+    ],
+    "medicalHistory": [
+      {
+        "date": "2025-07-11",
+        "diagnosis": "Uncontrolled Hypertension",
+        "hospital": "City Heart Center",
+        "treatment": "Dose adjustment for amlodipine",
+        "notes": "BP improved on follow-up"
+      },
+      {
+        "date": "2025-11-03",
+        "diagnosis": "Viral Febrile Illness",
+        "hospital": "MediCare Clinic",
+        "treatment": "Supportive care and hydration",
+        "notes": "Recovered in 5 days"
+      }
+    ]
+  },
+  {
+    "abhaId": "91-2000-2000-2000",
+    "name": "Meera Joshi",
+    "age": 31,
+    "sex": "F",
+    "bloodGroup": "O+",
+    "phone": "9811122233",
+    "ecName": "Vikram Joshi",
+    "ecPhone": "9888877766",
+    "ecRelation": "Spouse",
+    "noAllergies": true,
+    "allergies": [],
+    "conditions": ["Asthma"],
+    "noMeds": false,
+    "medications": [
+      { "name": "Budesonide", "dose": "200mcg", "route": "Inhaled", "frequency": "Twice daily" }
+    ],
+    "medicalHistory": [
+      {
+        "date": "2024-12-19",
+        "diagnosis": "Acute Asthma Exacerbation",
+        "hospital": "Green Valley Hospital",
+        "treatment": "Nebulization and inhaled steroid optimization",
+        "notes": "No ICU admission required"
+      },
+      {
+        "date": "2025-09-01",
+        "diagnosis": "Seasonal Allergic Rhinitis",
+        "hospital": "Community Care Center",
+        "treatment": "Antihistamines",
+        "notes": "Symptoms controlled"
+      }
+    ]
+  },
+  {
+    "abhaId": "91-3000-3000-3000",
+    "name": "Arjun Nair",
+    "age": 55,
+    "sex": "M",
+    "bloodGroup": "A+",
+    "phone": "9822233344",
+    "ecName": "Latha Nair",
+    "ecPhone": "9812345678",
+    "ecRelation": "Spouse",
+    "noAllergies": false,
+    "allergies": [
+      { "allergen": "NSAIDs", "reaction": "Gastric upset" }
+    ],
+    "conditions": ["Diabetes", "Heart Disease"],
+    "noMeds": false,
+    "medications": [
+      { "name": "Metformin", "dose": "500mg", "route": "Oral", "frequency": "Twice daily" },
+      { "name": "Atorvastatin", "dose": "10mg", "route": "Oral", "frequency": "Once daily" }
+    ],
+    "medicalHistory": [
+      {
+        "date": "2024-08-08",
+        "diagnosis": "Type 2 Diabetes Mellitus",
+        "hospital": "Metro Diabetes Center",
+        "treatment": "Started metformin and diet counseling",
+        "notes": "HbA1c decreased after 3 months"
+      },
+      {
+        "date": "2025-03-14",
+        "diagnosis": "Stable Angina",
+        "hospital": "CardioPlus Institute",
+        "treatment": "Medical management",
+        "notes": "Advised regular follow-up"
+      }
+    ]
+  },
+  {
+    "abhaId": "91-4000-4000-4000",
+    "name": "Sana Shaikh",
+    "age": 27,
+    "sex": "F",
+    "bloodGroup": "AB+",
+    "phone": "9900112233",
+    "ecName": "Aamir Shaikh",
+    "ecPhone": "9911223344",
+    "ecRelation": "Sibling",
+    "noAllergies": true,
+    "allergies": [],
+    "conditions": [],
+    "noMeds": true,
+    "medications": [],
+    "medicalHistory": [
+      {
+        "date": "2025-02-22",
+        "diagnosis": "Mild Gastroenteritis",
+        "hospital": "Sunrise Clinic",
+        "treatment": "Oral rehydration and symptomatic medications",
+        "notes": "Resolved without complications"
+      }
+    ]
+  },
+  {
+    "abhaId": "91-5000-5000-5000",
+    "name": "Kiran Deshmukh",
+    "age": 63,
+    "sex": "M",
+    "bloodGroup": "O-",
+    "phone": "9766655544",
+    "ecName": "Sujata Deshmukh",
+    "ecPhone": "9766677788",
+    "ecRelation": "Spouse",
+    "noAllergies": false,
+    "allergies": [
+      { "allergen": "Sulfa drugs", "reaction": "Hives" }
+    ],
+    "conditions": ["Kidney Disease", "Hypertension"],
+    "noMeds": false,
+    "medications": [
+      { "name": "Losartan", "dose": "50mg", "route": "Oral", "frequency": "Once daily" }
+    ],
+    "medicalHistory": [
+      {
+        "date": "2024-04-09",
+        "diagnosis": "Chronic Kidney Disease Stage 3",
+        "hospital": "Renal Care Institute",
+        "treatment": "Nephrology follow-up and BP control",
+        "notes": "Renal function stable"
+      },
+      {
+        "date": "2025-01-30",
+        "diagnosis": "Hypertensive Urgency",
+        "hospital": "District General Hospital",
+        "treatment": "IV antihypertensives then oral therapy",
+        "notes": "Discharged after stabilization"
+      }
+    ]
+  },
+  {
+    "abhaId": "91-6000-6000-6000",
+    "name": "Nisha Verma",
+    "age": 36,
+    "sex": "F",
+    "bloodGroup": "B-",
+    "phone": "9933445566",
+    "ecName": "Rahul Verma",
+    "ecPhone": "9944556677",
+    "ecRelation": "Spouse",
+    "noAllergies": false,
+    "allergies": [
+      { "allergen": "Latex", "reaction": "Contact dermatitis" }
+    ],
+    "conditions": ["Epilepsy"],
+    "noMeds": false,
+    "medications": [
+      { "name": "Levetiracetam", "dose": "500mg", "route": "Oral", "frequency": "Twice daily" }
+    ],
+    "medicalHistory": [
+      {
+        "date": "2023-10-17",
+        "diagnosis": "Generalized Seizure Disorder",
+        "hospital": "NeuroCare Hospital",
+        "treatment": "Initiated antiepileptic therapy",
+        "notes": "Seizure-free for 6 months"
+      },
+      {
+        "date": "2025-06-05",
+        "diagnosis": "Breakthrough Seizure",
+        "hospital": "City Emergency Unit",
+        "treatment": "Dose escalation of levetiracetam",
+        "notes": "No further episodes reported"
+      }
+    ]
+  }
+]

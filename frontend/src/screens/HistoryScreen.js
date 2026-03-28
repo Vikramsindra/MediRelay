@@ -45,7 +45,17 @@ export default function HistoryScreen({ navigation }) {
       try {
         const items = await fetchTransfers({ doctorId });
         if (cancelled) return;
-        setState((s) => ({ ...s, transfers: items }));
+        setState((s) => {
+          const receivedLocal = (s.transfers || []).filter((t) => t.direction === 'received');
+          const sentRemote = (items || []).map((t) => ({ ...t, direction: 'sent' }));
+
+          const merged = [
+            ...receivedLocal,
+            ...sentRemote.filter((sent) => !receivedLocal.some((received) => received.id === sent.id)),
+          ];
+
+          return { ...s, transfers: merged };
+        });
       } catch (_error) {
         if (cancelled) return;
       }

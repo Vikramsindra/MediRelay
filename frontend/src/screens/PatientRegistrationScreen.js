@@ -10,7 +10,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { setState, getState } from '../store';
-import { buildPatientCreatePayload, createPatient } from '../api/patients';
+import { buildPatientCreatePayload, createPatient, fetchPatientByAbhaId } from '../api/patients';
 import { getStoredDoctorId } from '../storage/authStorage';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
@@ -22,6 +22,11 @@ const CHRONIC_CONDITIONS = [
 const COMMON_ALLERGENS = ['Penicillin', 'Aspirin', 'Sulfa drugs', 'NSAIDs', 'Latex', 'Iodine', 'Other'];
 
 export default function PatientRegistrationScreen({ navigation }) {
+
+  const [abhaId, setAbhaId] = useState('');
+  const [isFetchingAbha, setIsFetchingAbha] = useState(false);
+  const [abhaStatus, setAbhaStatus] = useState('');
+
   // Identity
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
@@ -81,6 +86,42 @@ export default function PatientRegistrationScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
+  const handleFetchFromAbha = async () => {
+    try {
+      setAbhaStatus('');
+      setIsFetchingAbha(true);
+
+      const abhaPatient = await fetchPatientByAbhaId(abhaId);
+
+      setName(abhaPatient.name || '');
+      setAge(String(abhaPatient.age || ''));
+      setSex(abhaPatient.sex || '');
+      setBloodGroup(abhaPatient.bloodGroup || '');
+      setPhone(abhaPatient.phone || '');
+
+      setEcName(abhaPatient.ecName || '');
+      setEcPhone(abhaPatient.ecPhone || '');
+      setEcRelation(abhaPatient.ecRelation || '');
+
+      setNoAllergies(Boolean(abhaPatient.noAllergies));
+      setAllergies(Array.isArray(abhaPatient.allergies) ? abhaPatient.allergies : []);
+
+      setConditions(Array.isArray(abhaPatient.conditions) ? abhaPatient.conditions : []);
+
+      setNoMeds(Boolean(abhaPatient.noMeds));
+      setMedications(Array.isArray(abhaPatient.medications)
+        ? abhaPatient.medications.map((m) => ({ ...m, mustNotStop: false }))
+        : []);
+
+      setErrors((prev) => ({ ...prev, save: '' }));
+      setAbhaStatus('Patient details fetched from ABHA mock service. Please review and save.');
+    } catch (error) {
+      setAbhaStatus(error?.message || 'Unable to fetch ABHA details');
+    } finally {
+      setIsFetchingAbha(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!validate()) return;
     const doctorId = getState()?.doctor?.userId || await getStoredDoctorId();
@@ -93,6 +134,7 @@ export default function PatientRegistrationScreen({ navigation }) {
     try {
       const payload = buildPatientCreatePayload({
         name,
+        abhaId,
         age,
         sex,
         bloodGroup,
@@ -133,10 +175,37 @@ export default function PatientRegistrationScreen({ navigation }) {
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
+          {/* ABHA quick fetch */}
+          <SectionHeader label="REGISTER WITH ABHA ID" />
+          <LabeledInput
+            label="ABHA ID"
+            value={abhaId}
+            onChangeText={setAbhaId}
+            placeholder="91-1234-5678-9012"
+            autoFocus
+          />
+          <TouchableOpacity
+            onPress={handleFetchFromAbha}
+            style={[styles.addBtn, isFetchingAbha && { opacity: 0.7 }]}
+            disabled={isFetchingAbha}
+          >
+            <Text style={[typography.titleSm, { color: colors.primary }]}> 
+              {isFetchingAbha ? 'Fetching from ABHA...' : 'Fetch Patient Details'}
+            </Text>
+          </TouchableOpacity>
+          {abhaStatus ? (
+            <Text style={[typography.bodySm, { color: abhaStatus.includes('fetched') ? '#1a6640' : colors.error, marginBottom: spacing[3] }]}> 
+              {abhaStatus}
+            </Text>
+          ) : null}
+          <Text style={[typography.bodySm, { color: colors.outline, marginBottom: spacing[3] }]}> 
+            If ABHA fetch does not work, continue by entering details manually below.
+          </Text>
+
           {/* Identity */}
           <SectionHeader label="IDENTITY" />
           <LabeledInput label="Full Name" value={name} onChangeText={setName}
-            placeholder="Patient's full name" required autoFocus error={errors.name} />
+            placeholder="Patient's full name" required error={errors.name} />
           <LabeledInput label="Age" value={age} onChangeText={(t) => setAge(t.replace(/\D/g, ''))}
             placeholder="e.g. 45" keyboardType="numeric" required error={errors.age} />
 

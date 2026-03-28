@@ -32,7 +32,11 @@ export default function QRScannerScreen({ navigation, route }) {
         : mapTransferFromApi(transferFromQr);
       navigation.navigate('RecordViewer', {
         transferId: mappedTransfer.id,
-        transferPayload: mappedTransfer,
+        transferPayload: {
+          ...mappedTransfer,
+          direction: 'received',
+        },
+        transferDirection: 'received',
       });
       return true;
     }
@@ -40,13 +44,19 @@ export default function QRScannerScreen({ navigation, route }) {
     const shareIdMatch = scannedText.match(/\/share\/([\w-]+)/i)
       || scannedText.match(/\/r\/([\w-]+)/i);
     if (shareIdMatch?.[1]) {
-      navigation.navigate('RecordViewer', { transferShareId: shareIdMatch[1] });
+      navigation.navigate('RecordViewer', {
+        transferShareId: shareIdMatch[1],
+        transferDirection: 'received',
+      });
       return true;
     }
 
     const objectIdMatch = scannedText.match(/\b([a-fA-F0-9]{24})\b/);
     if (objectIdMatch?.[1]) {
-      navigation.navigate('RecordViewer', { transferId: objectIdMatch[1] });
+      navigation.navigate('RecordViewer', {
+        transferId: objectIdMatch[1],
+        transferDirection: 'received',
+      });
       return true;
     }
 

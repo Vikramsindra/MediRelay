@@ -12,6 +12,14 @@ const patientSchema = new mongoose.Schema({
 
     // Identity
     fullName: { type: String, required: true },
+    abhaRegistration: { type: Boolean, default: false },
+    abhaId: {
+        type: String,
+        trim: true,
+        required: function () {
+            return this.abhaRegistration === true;
+        }
+    },
     age: { type: Number, required: true },
     sex: { type: String, enum: ["M", "F", "Other"], required: true },
     bloodGroup: {
@@ -53,6 +61,17 @@ const patientSchema = new mongoose.Schema({
     ]
 
 }, { timestamps: true });
+
+patientSchema.index(
+    { abhaId: 1 },
+    {
+        unique: true,
+        partialFilterExpression: {
+            abhaRegistration: true,
+            abhaId: { $type: "string", $ne: "" }
+        }
+    }
+);
 
 const Patient = mongoose.models.Patient || mongoose.model("Patient", patientSchema);
 

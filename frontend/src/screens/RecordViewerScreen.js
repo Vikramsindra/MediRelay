@@ -11,24 +11,37 @@ import { PrimaryButton, ToggleGroup } from '../components/Buttons';
 import { LabeledInput } from '../components/Inputs';
 import { AppIcon } from '../components/AppIcon';
 import { getState, setState, useStore } from '../store';
-import { getTransferById, getTransferByShareId } from '../api/transfers';
+import { getTransferById, getTransferByShareId, updateTransfer } from '../api/transfers';
+import {
+  fetchMedicalHistoryByAbhaId,
+  fetchMedicalHistoryForPatientProfile,
+  getPatientById,
+} from '../api/patients';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 export default function RecordViewerScreen({ navigation, route }) {
-  const { transferId, transferShareId, transferPayload } = route.params ?? {};
+  const { transferId, transferShareId, transferPayload, transferDirection } = route.params ?? {};
+  const effectiveDirection = transferDirection === 'received' ? 'received' : 'sent';
   const state = useStore();
   const [transfer, setTransfer] = useState(
-    transferPayload || state.transfers.find((t) => t.id === transferId) || null,
+    transferPayload
+      ? { ...transferPayload, direction: transferPayload.direction || effectiveDirection }
+      : state.transfers.find((t) => t.id === transferId) || null,
   );
 
   useEffect(() => {
     if (transferPayload) {
+      const payloadWithDirection = {
+        ...transferPayload,
+        direction: transferPayload.direction || effectiveDirection,
+      };
       setState((s) => {
-        const exists = s.transfers.some((t) => t.id === transferPayload.id);
+        const exists = s.transfers.some((t) => t.id === payloadWithDirection.id);
         return {
           ...s,
           transfers: exists
-            ? s.transfers.map((t) => (t.id === transferPayload.id ? transferPayload : t))
-            : [transferPayload, ...s.transfers],
+            ? s.transfers.map((t) => (t.id === payloadWithDirection.id ? payloadWithDirection : t))
+            : [payloadWithDirection, ...s.transfers],
         };
       });
       return;
@@ -42,15 +55,19 @@ export default function RecordViewerScreen({ navigation, route }) {
         const fetched = transferShareId
           ? await getTransferByShareId(transferShareId)
           : await getTransferById(transferId);
+        const fetchedWithDirection = {
+          ...fetched,
+          direction: transfer?.direction || effectiveDirection,
+        };
         if (cancelled) return;
-        setTransfer(fetched);
+        setTransfer(fetchedWithDirection);
         setState((s) => {
-          const exists = s.transfers.some((t) => t.id === fetched.id);
+          const exists = s.transfers.some((t) => t.id === fetchedWithDirection.id);
           return {
             ...s,
             transfers: exists
-              ? s.transfers.map((t) => (t.id === fetched.id ? fetched : t))
-              : [fetched, ...s.transfers],
+              ? s.transfers.map((t) => (t.id === fetchedWithDirection.id ? fetchedWithDirection : t))
+              : [fetchedWithDirection, ...s.transfers],
           };
         });
       } catch (_error) {
@@ -63,7 +80,7 @@ export default function RecordViewerScreen({ navigation, route }) {
     return () => {
       cancelled = true;
     };
-  }, [transferId, transferShareId, transferPayload]);
+  }, [transferId, transferShareId, transferPayload, transferDirection]);
 
   const patient = state.patients.find((p) => p.id === transfer?.patientId)
     || transfer?.patientSnapshot
@@ -74,22 +91,100 @@ export default function RecordViewerScreen({ navigation, route }) {
   const [arrivalNote, setArrivalNote] = useState('');
   const [discrepancy, setDiscrepancy] = useState('');
   const [acknowledged, setAcknowledged] = useState(transfer?.status === 'Acknowledged');
+  const [ackError, setAckError] = useState('');
+  const [isSubmittingAck, setIsSubmittingAck] = useState(false);
+  const [historyItems, setHistoryItems] = useState([]);
+  const [historyError, setHistoryError] = useState('');
+  const [isFetchingHistory, setIsFetchingHistory] = useState(false);
+  const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
 
   const vitals = transfer?.vitals ?? {};
   const mustNotStop = (transfer?.activeMeds ?? patient?.medications ?? []).filter((m) => m.mustNotStop);
   const regularMeds = (transfer?.activeMeds ?? patient?.medications ?? []).filter((m) => !m.mustNotStop);
   const hasAllergies = patient?.allergies?.length > 0;
+  const patientAbhaId = String(patient?.abhaId || transfer?.patientSnapshot?.abhaId || '').trim();
 
-  const handleAcknowledge = () => {
+  const handleAcknowledge = async () => {
     if (!arrivalCondition) return;
-    setState((s) => ({
-      ...s,
-      transfers: s.transfers.map((t) =>
-        t.id === transferId ? { ...t, status: 'Acknowledged' } : t,
-      ),
-    }));
-    setAcknowledged(true);
-    setShowAckPanel(false);
+
+    const effectiveTransferId = transfer?.id || transferId;
+    if (!effectiveTransferId) {
+      setAckError('Unable to identify this transfer. Please retry.');
+      return;
+    }
+
+    try {
+      setAckError('');
+      setIsSubmittingAck(true);
+
+      const updated = await updateTransfer(effectiveTransferId, {
+        status: 'acknowledged',
+        acknowledgement: {
+          arrivalCondition,
+          arrivalNote,
+          discrepancy,
+          acknowledgedAt: new Date().toISOString(),
+        },
+      });
+
+      const updatedWithDirection = {
+        ...updated,
+        direction: transfer?.direction || effectiveDirection,
+      };
+
+      setTransfer(updatedWithDirection);
+      setState((s) => ({
+        ...s,
+        transfers: s.transfers.map((t) =>
+          t.id === updatedWithDirection.id ? { ...t, ...updatedWithDirection } : t,
+        ),
+      }));
+      setAcknowledged(true);
+      setShowAckPanel(false);
+    } catch (error) {
+      setAckError(error?.message || 'Failed to submit acknowledgement');
+    } finally {
+      setIsSubmittingAck(false);
+    }
+  };
+
+  const handleFetchMedicalHistory = async () => {
+    try {
+      setIsFetchingHistory(true);
+      setHistoryError('');
+
+      let abhaForLookup = patientAbhaId;
+
+      // If ABHA is missing in transfer payload/snapshot, verify from saved patient record in DB.
+      if (!abhaForLookup && transfer?.patientId) {
+        const doctorId = getState()?.doctor?.userId || await getStoredDoctorId();
+        if (doctorId) {
+          try {
+            const patientFromDb = await getPatientById(transfer.patientId, doctorId);
+            abhaForLookup = String(patientFromDb?.abhaId || '').trim();
+          } catch (_error) {
+            // Fall back to profile-based matching below.
+          }
+        }
+      }
+
+      const history = abhaForLookup
+        ? await fetchMedicalHistoryByAbhaId(abhaForLookup)
+        : await fetchMedicalHistoryForPatientProfile({
+          name: patient?.name || transfer?.patientName,
+          age: patient?.age,
+          phone: patient?.phone,
+        });
+
+      setHistoryItems(history);
+      setHasFetchedHistory(true);
+    } catch (error) {
+      setHistoryItems([]);
+      setHistoryError(error?.message || 'Unable to fetch medical history right now.');
+      setHasFetchedHistory(true);
+    } finally {
+      setIsFetchingHistory(false);
+    }
   };
 
   return (
@@ -241,17 +336,72 @@ export default function RecordViewerScreen({ navigation, route }) {
           </Text>
         </View>
 
+        {(hasFetchedHistory || isFetchingHistory) ? (
+          <>
+            <SectionLabel style={{ marginTop: spacing[5] }}>Medical History</SectionLabel>
+            {isFetchingHistory ? (
+              <View style={styles.historyCard}>
+                <Text style={[typography.bodyMd, { color: colors.onSurfaceVariant }]}>Fetching medical history...</Text>
+              </View>
+            ) : null}
+
+            {!isFetchingHistory && historyError ? (
+              <View style={styles.historyCard}>
+                <Text style={[typography.bodyMd, { color: colors.error }]}>{historyError}</Text>
+              </View>
+            ) : null}
+
+            {!isFetchingHistory && !historyError && historyItems.length === 0 ? (
+              <View style={styles.historyCard}>
+                <Text style={[typography.bodyMd, { color: colors.onSurfaceVariant }]}>No medical history entries found.</Text>
+              </View>
+            ) : null}
+
+            {!isFetchingHistory && !historyError && historyItems.length > 0
+              ? historyItems.map((item) => (
+                <View key={item.id} style={styles.historyCard}>
+                  <Text style={[typography.titleSm, { color: colors.onSurface }]}>
+                    {item.date || 'Unknown date'} · {item.diagnosis || 'Clinical record'}
+                  </Text>
+                  <Text style={[typography.bodySm, { color: colors.outline, marginTop: spacing[1] }]}>
+                    {item.hospital || 'Unknown hospital'}
+                  </Text>
+                  {item.treatment ? (
+                    <Text style={[typography.bodyMd, { color: colors.onSurface, marginTop: spacing[2] }]}>
+                      Treatment: {item.treatment}
+                    </Text>
+                  ) : null}
+                  {item.notes ? (
+                    <Text style={[typography.bodySm, { color: colors.onSurfaceVariant, marginTop: spacing[1.5] }]}>
+                      Notes: {item.notes}
+                    </Text>
+                  ) : null}
+                </View>
+              ))
+              : null}
+          </>
+        ) : null}
+
         <View style={{ height: 100 }} />
       </ScrollView>
 
       {/* Sticky acknowledge button */}
       <View style={styles.stickyBottom}>
         {acknowledged ? (
-          <View style={styles.acknowledgedBanner}>
-            <View style={styles.ackRow}>
-              <AppIcon name="check" size={16} color="#1a6640" />
-              <Text style={[typography.titleMd, { color: '#1a6640', marginLeft: 6 }]}>Transfer Acknowledged</Text>
+          <View>
+            <View style={styles.acknowledgedBanner}>
+              <View style={styles.ackRow}>
+                <AppIcon name="check" size={16} color="#1a6640" />
+                <Text style={[typography.titleMd, { color: '#1a6640', marginLeft: 6 }]}>Transfer Acknowledged</Text>
+              </View>
             </View>
+            <View style={{ height: spacing[3] }} />
+            <PrimaryButton
+              label={isFetchingHistory ? 'Fetching Medical History...' : 'Fetch Medical History'}
+              iconName="chevron-right"
+              onPress={handleFetchMedicalHistory}
+              disabled={isFetchingHistory}
+            />
           </View>
         ) : (
           <PrimaryButton
@@ -304,8 +454,13 @@ export default function RecordViewerScreen({ navigation, route }) {
             <PrimaryButton
               label="Confirm & Submit"
               onPress={handleAcknowledge}
-              disabled={!arrivalCondition}
+              disabled={!arrivalCondition || isSubmittingAck}
             />
+            {ackError ? (
+              <Text style={[typography.bodySm, { color: colors.error, marginTop: spacing[2] }]}>
+                {ackError}
+              </Text>
+            ) : null}
             <TouchableOpacity onPress={() => setShowAckPanel(false)} style={styles.cancelBtn}>
               <Text style={[typography.bodyMd, { color: colors.outline, textAlign: 'center' }]}>Cancel</Text>
             </TouchableOpacity>
@@ -372,6 +527,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.md,
     padding: spacing[4],
+  },
+  historyCard: {
+    backgroundColor: colors.surfaceContainerLowest,
+    borderRadius: radius.md,
+    padding: spacing[4],
+    marginTop: spacing[2.5],
   },
   stickyBottom: {
     padding: spacing[5],

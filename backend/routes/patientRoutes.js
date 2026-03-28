@@ -92,13 +92,32 @@ router.get("/search", async (req, res) => {
 // ➕ POST /patients → Register patient
 router.post("/", async (req, res) => {
     try {
-        const { fullName, age, sex, doctorId } = req.body;
+        const { fullName, age, sex, doctorId, abhaRegistration, abhaId } = req.body;
 
         if (!fullName || !age || !sex || !doctorId) {
             return res.status(400).json({
                 success: false,
                 message: "doctorId, fullName, age, and sex are required"
             });
+        }
+
+        if (abhaRegistration === true) {
+            const normalizedAbhaId = String(abhaId || "").trim();
+            if (!normalizedAbhaId) {
+                return res.status(400).json({
+                    success: false,
+                    message: "abhaId is required when abhaRegistration is true"
+                });
+            }
+
+            if (!/^\d{2}-\d{4}-\d{4}-\d{4}$/.test(normalizedAbhaId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "ABHA ID format should be like 91-1234-5678-9012"
+                });
+            }
+
+            req.body.abhaId = normalizedAbhaId;
         }
 
         if (!mongoose.Types.ObjectId.isValid(doctorId)) {
@@ -116,6 +135,13 @@ router.post("/", async (req, res) => {
         });
 
     } catch (error) {
+        if (error?.code === 11000 && error?.keyPattern?.abhaId) {
+            return res.status(409).json({
+                success: false,
+                message: "ABHA ID already exists"
+            });
+        }
+
         res.status(400).json({
             success: false,
             message: error.message

@@ -76,6 +76,8 @@ function buildCompactTransferPayload(transfer) {
       ? {
         id: String(transfer?.patientSnapshot?.id || '').trim(),
         n: String(transfer?.patientSnapshot?.name || '').trim(),
+        ai: String(transfer?.patientSnapshot?.abhaId || '').trim(),
+        ar: Boolean(transfer?.patientSnapshot?.abhaRegistration),
         a: Number(transfer?.patientSnapshot?.age || 0),
         sx: String(transfer?.patientSnapshot?.sex || '').trim(),
         bg: String(transfer?.patientSnapshot?.bloodGroup || '').trim(),
@@ -113,6 +115,8 @@ function expandCompactTransferPayload(compact) {
       ? {
         id: String(compact?.ps?.id || '').trim(),
         name: String(compact?.ps?.n || '').trim(),
+        abhaId: String(compact?.ps?.ai || '').trim(),
+        abhaRegistration: Boolean(compact?.ps?.ar),
         age: Number(compact?.ps?.a || 0),
         sex: String(compact?.ps?.sx || '').trim(),
         bloodGroup: String(compact?.ps?.bg || '').trim(),
@@ -228,6 +232,8 @@ export function mapTransferFromApi(rawTransfer) {
       ? {
         id: String(rawTransfer?.patient?._id || rawTransfer?.patientId || ''),
         name: String(rawTransfer?.patient?.fullName || '').trim(),
+        abhaId: String(rawTransfer?.patient?.abhaId || '').trim(),
+        abhaRegistration: Boolean(rawTransfer?.patient?.abhaRegistration),
         age: Number(rawTransfer?.patient?.age || 0),
         sex: String(rawTransfer?.patient?.sex || '').trim(),
         bloodGroup: String(rawTransfer?.patient?.bloodGroup || '').trim(),
@@ -300,5 +306,19 @@ export async function getTransferByShareId(shareId) {
   });
 
   const body = await getJsonOrThrow(response, 'Failed to fetch transfer');
+  return mapTransferFromApi(body?.data);
+}
+
+export async function updateTransfer(transferId, patch) {
+  const response = await fetch(`${TRANSFERS_ENDPOINT}/${transferId}`, {
+    method: 'PATCH',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(patch || {}),
+  });
+
+  const body = await getJsonOrThrow(response, 'Failed to update transfer');
   return mapTransferFromApi(body?.data);
 }

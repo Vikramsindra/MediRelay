@@ -23,7 +23,6 @@ export default function QRDisplayScreen({ navigation, route }) {
     ? `medirelay.app/r/${transfer.shareId}`
     : `medirelay.app/r/${transferId}`;
 
-  // Simulate real-time status updates
   const [status, setStatus] = useState(transfer?.status ?? 'Pending');
   const [linkCopied, setLinkCopied] = useState(false);
 
@@ -54,8 +53,11 @@ export default function QRDisplayScreen({ navigation, route }) {
 
     loadTransfer();
 
+    const interval = setInterval(loadTransfer, 5000);
+
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [transferId]);
 
@@ -63,15 +65,6 @@ export default function QRDisplayScreen({ navigation, route }) {
     if (!transfer) return;
     setQrPayload(buildTransferQrPayload(transfer));
   }, [transfer]);
-
-  useEffect(() => {
-    if (status === 'Acknowledged') return;
-    const t = setTimeout(() => {
-      if (status === 'Pending') setStatus('Viewed');
-      else if (status === 'Viewed') setStatus('Acknowledged');
-    }, 5000);
-    return () => clearTimeout(t);
-  }, [status]);
 
   const handleShare = async () => {
     try {

@@ -64,7 +64,7 @@ export default function PatientListScreen({ navigation, route }) {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
           <View style={styles.backRow}>
@@ -186,7 +186,9 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingTop: spacing[12] },
   emptyIcon: { fontSize: 40 },
   stickyBottom: {
-    padding: spacing[5],
+    paddingHorizontal: spacing[5],
+    paddingTop: spacing[3],
+    paddingBottom: spacing[1],
     backgroundColor: colors.background,
     borderTopWidth: 1,
     borderTopColor: colors.outlineVariant,
