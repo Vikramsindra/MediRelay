@@ -12,13 +12,10 @@ const patientSchema = new mongoose.Schema({
 
     // Identity
     fullName: { type: String, required: true },
-    abhaRegistration: { type: Boolean, default: false },
     abhaId: {
         type: String,
         trim: true,
-        required: function () {
-            return this.abhaRegistration === true;
-        }
+        sparse: true
     },
     age: { type: Number, required: true },
     sex: { type: String, enum: ["M", "F", "Other"], required: true },
@@ -66,10 +63,7 @@ patientSchema.index(
     { abhaId: 1 },
     {
         unique: true,
-        partialFilterExpression: {
-            abhaRegistration: true,
-            abhaId: { $type: "string", $ne: "" }
-        }
+        sparse: true
     }
 );
 

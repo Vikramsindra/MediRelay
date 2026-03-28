@@ -5,6 +5,12 @@ const Transfer = require("../models/transferRecord.js");
 const Patient = require("../models/PatientModel.js");
 
 const BASE_URL = process.env.BACKEND_URL || "http://localhost:8080";
+const CLINICAL_SUMMARY_MAX_LENGTH = 900;
+
+function normalizeClinicalSummary(value) {
+    if (value === undefined || value === null) return value;
+    return String(value).slice(0, CLINICAL_SUMMARY_MAX_LENGTH);
+}
 
 function buildQrPayload(transfer) {
     return JSON.stringify({
@@ -73,7 +79,7 @@ router.post("/", async (req, res) => {
             reasonForTransfer,
             vitals: vitals || {},
             activeMedications: activeMedications || [],
-            clinicalSummary,
+            clinicalSummary: normalizeClinicalSummary(clinicalSummary),
             pendingInvestigations: pendingInvestigations || [],
             modeOfTransfer,
             shareId,
@@ -111,10 +117,15 @@ router.patch("/:id", async (req, res) => {
             });
         }
 
+        const updatePayload = { ...req.body };
+        if (Object.prototype.hasOwnProperty.call(updatePayload, "clinicalSummary")) {
+            updatePayload.clinicalSummary = normalizeClinicalSummary(updatePayload.clinicalSummary);
+        }
+
         const transfer = await Transfer.findByIdAndUpdate(
             req.params.id,
-            req.body,
-            { new: true }
+            updatePayload,
+            { new: true, runValidators: true }
         );
 
         if (!transfer) {

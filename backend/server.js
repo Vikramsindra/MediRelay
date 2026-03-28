@@ -5,6 +5,7 @@ const cors = require("cors");
 const patientRoutes = require("./routes/patientRoutes.js");
 const transferRoutes = require("./routes/transferRoutes.js");
 const userRoutes = require("./routes/userRoutes.js");
+const ocrRoutes = require("./routes/ocrRoutes.js");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -19,6 +20,7 @@ app.get("/test", (req, res) => {
 app.use("/api/v1/patients", patientRoutes);
 app.use("/api/v1/transfers", transferRoutes);
 app.use("/api/v1/users", userRoutes);
+app.use("/api/v1/ocr", ocrRoutes);
 
 app.use((req, res) => {
     res.status(404).json({

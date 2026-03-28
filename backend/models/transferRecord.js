@@ -116,7 +116,7 @@ const transferRecordSchema = new mongoose.Schema({
     // =========================
     clinicalSummary: {
         type: String,
-        maxlength: 150
+        maxlength: 900
     },
 
     pendingInvestigations: [String],

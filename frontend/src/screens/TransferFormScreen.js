@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius } from '../theme';
 import { LabeledInput, BPInput, VitalInput, SimpleDropdown } from '../components/Inputs';
@@ -12,6 +13,7 @@ import { ConditionChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { getState, setState } from '../store';
 import { createTransfer } from '../api/transfers';
+import { extractTransferDetailsFromImage } from '../api/ocr';
 import { getStoredDoctorId } from '../storage/authStorage';
 
 const CONDITION_CATEGORIES = [
@@ -67,6 +69,20 @@ function normalizeMedicationRoute(route) {
   if (value === 'iv') return 'IV';
   if (value === 'im') return 'IM';
   return '';
+}
+
+function parseBp(value) {
+  const bp = String(value || '').trim();
+  if (!bp.includes('/')) return { sys: '', dia: '' };
+  const [sysRaw, diaRaw] = bp.split('/');
+  return {
+    sys: String(sysRaw || '').replace(/\D/g, ''),
+    dia: String(diaRaw || '').replace(/\D/g, ''),
+  };
+}
+
+function hasText(value) {
+  return String(value || '').trim().length > 0;
 }
 
 export default function TransferFormScreen({ navigation, route }) {
@@ -144,6 +160,8 @@ export default function TransferFormScreen({ navigation, route }) {
   const [receivingHospital, setReceivingHospital] = useState('');
   const [transferMode, setTransferMode] = useState('');
   const [submitError, setSubmitError] = useState('');
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractStatus, setExtractStatus] = useState('');
 
   const isNeuro = category === 'Neuro';
   const isDiabetic = patient?.conditions?.includes('Diabetes');
@@ -263,6 +281,109 @@ export default function TransferFormScreen({ navigation, route }) {
     }
   };
 
+  const handleExtractFromImage = async () => {
+    try {
+      setSubmitError('');
+      setExtractStatus('');
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setSubmitError('Media library permission is required to select an image.');
+        return;
+      }
+
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (picked.canceled || !picked.assets?.[0]) {
+        return;
+      }
+
+      setIsExtracting(true);
+      const extracted = await extractTransferDetailsFromImage(picked.assets[0]);
+      const raw = String(extracted?.rawText || '').trim();
+      const parsed = extracted?.parsed && typeof extracted.parsed === 'object' ? extracted.parsed : {};
+
+      const parsedChiefComplaint = String(parsed?.chiefComplaint || '').trim();
+      const parsedCategory = String(parsed?.conditionCategory || '').trim();
+      const parsedSeverity = String(parsed?.severity || '').trim();
+      const parsedReason = String(parsed?.reasonForTransfer || '').trim();
+      const parsedSummary = String(parsed?.clinicalSummary || '').trim();
+      const parsedReceivingHospital = String(parsed?.receivingHospital || '').trim();
+
+      if (parsedChiefComplaint && !hasText(chiefComplaint)) {
+        setChiefComplaint(parsedChiefComplaint.slice(0, 120));
+      }
+
+      if (!hasText(category) && parsedCategory && CONDITION_CATEGORIES.some((c) => c.label === parsedCategory)) {
+        setCategory(parsedCategory);
+      }
+
+      if (!hasText(severity) && parsedSeverity && ['Critical', 'Serious', 'Stable'].includes(parsedSeverity)) {
+        setSeverity(parsedSeverity);
+      }
+
+      if (parsedReason && !hasText(transferReason)) {
+        setTransferReason(parsedReason);
+      }
+
+      if (!hasText(summary)) {
+        if (parsedSummary) {
+          setSummary(parsedSummary.slice(0, 900));
+        } else if (raw) {
+          setSummary(raw.slice(0, 900));
+        }
+      }
+
+      if (parsedReceivingHospital && !hasText(receivingHospital)) {
+        setReceivingHospital(parsedReceivingHospital);
+      }
+
+      const parsedVitals = parsed?.vitals && typeof parsed.vitals === 'object' ? parsed.vitals : {};
+      const { sys, dia } = parseBp(parsedVitals?.bp);
+      if (!hasText(bpSys) && sys) setBpSys(sys);
+      if (!hasText(bpDia) && dia) setBpDia(dia);
+      if (!hasText(hr) && parsedVitals?.hr != null) setHr(String(parsedVitals.hr));
+      if (!hasText(spo2) && parsedVitals?.spo2 != null) setSpo2(String(parsedVitals.spo2));
+      if (!hasText(temp) && parsedVitals?.temp != null) setTemp(String(parsedVitals.temp));
+      if (!hasText(rr) && parsedVitals?.rr != null) setRr(String(parsedVitals.rr));
+      if (!hasText(gcs) && parsedVitals?.gcs != null) setGcs(String(parsedVitals.gcs));
+      if (!hasText(bsl) && parsedVitals?.bloodSugar != null) setBsl(String(parsedVitals.bloodSugar));
+
+      const parsedMeds = Array.isArray(parsed?.activeMedications) ? parsed.activeMedications : [];
+      const mappedMeds = parsedMeds.map((med) => ({
+        name: String(med?.name || '').trim(),
+        dose: String(med?.dose || '').trim(),
+        route: normalizeMedicationRoute(med?.route),
+        frequency: String(med?.frequency || '').trim(),
+        mustNotStop: Boolean(med?.mustNotStop),
+      })).filter((med) => med.name || med.dose || med.route || med.frequency);
+
+      if (mappedMeds.length > 0 && (!Array.isArray(activeMeds) || activeMeds.length === 0)) {
+        setActiveMeds(mappedMeds);
+      }
+
+      const parsedInvestigations = Array.isArray(parsed?.pendingInvestigations)
+        ? parsed.pendingInvestigations
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+        : [];
+      const recognizedInvestigations = parsedInvestigations.filter((item) => INVESTIGATIONS.includes(item));
+      if (recognizedInvestigations.length > 0 && (!Array.isArray(investigations) || investigations.length === 0)) {
+        setInvestigations(recognizedInvestigations);
+      }
+
+      setExtractStatus('Details extracted from image. Please review and adjust before submitting.');
+    } catch (error) {
+      setSubmitError(error?.message || 'Failed to extract details from image');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
@@ -292,6 +413,19 @@ export default function TransferFormScreen({ navigation, route }) {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
+
+          <View style={styles.extractWrap}>
+            <SecondaryButton
+              label={isExtracting ? 'Extracting From Image...' : 'Extract Details From Image'}
+              onPress={handleExtractFromImage}
+              disabled={isExtracting}
+            />
+            {extractStatus ? (
+              <Text style={[typography.bodySm, { color: '#1a6640', marginTop: spacing[2] }]}>
+                {extractStatus}
+              </Text>
+            ) : null}
+          </View>
 
           {/* ── STEP 1: Situation ── */}
           {currentStep === 0 && (
@@ -650,6 +784,7 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
   scroll: { paddingHorizontal: spacing[5], paddingTop: spacing[4] },
+  extractWrap: { marginBottom: spacing[4] },
   categoryGrid: { 
     flexDirection: 'row', 
     flexWrap: 'wrap', 

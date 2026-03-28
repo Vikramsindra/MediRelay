@@ -2,7 +2,7 @@ require("dotenv").config();
 const app = require("./server.js");
 const connectToDb = require("./config/db.js");
 
-const PORT = 8080;
+const PORT = Number(process.env.PORT) || 8080;
 
 async function startServer() {
     try {

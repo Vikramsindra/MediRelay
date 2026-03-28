@@ -92,7 +92,7 @@ router.get("/search", async (req, res) => {
 // ➕ POST /patients → Register patient
 router.post("/", async (req, res) => {
     try {
-        const { fullName, age, sex, doctorId, abhaRegistration, abhaId } = req.body;
+        const { fullName, age, sex, doctorId, abhaId } = req.body;
 
         if (!fullName || !age || !sex || !doctorId) {
             return res.status(400).json({
@@ -101,19 +101,33 @@ router.post("/", async (req, res) => {
             });
         }
 
-        if (abhaRegistration === true) {
-            const normalizedAbhaId = String(abhaId || "").trim();
-            if (!normalizedAbhaId) {
-                return res.status(400).json({
-                    success: false,
-                    message: "abhaId is required when abhaRegistration is true"
-                });
-            }
-
+        // ✅ Validate ABHA ID format if provided
+        if (abhaId) {
+            const normalizedAbhaId = String(abhaId).trim();
+            
             if (!/^\d{2}-\d{4}-\d{4}-\d{4}$/.test(normalizedAbhaId)) {
                 return res.status(400).json({
                     success: false,
                     message: "ABHA ID format should be like 91-1234-5678-9012"
+                });
+            }
+
+            // ✅ Check for duplicate ABHA ID (proactive check)
+            const existingPatient = await Patient.findOne({
+                abhaId: normalizedAbhaId
+            });
+
+            if (existingPatient) {
+                return res.status(409).json({
+                    success: false,
+                    message: "ABHA ID already exists in the system",
+                    existingPatient: {
+                        id: existingPatient._id,
+                        fullName: existingPatient.fullName,
+                        age: existingPatient.age,
+                        sex: existingPatient.sex,
+                        createdAt: existingPatient.createdAt
+                    }
                 });
             }
 
