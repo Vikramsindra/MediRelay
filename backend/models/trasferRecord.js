@@ -121,8 +121,8 @@ const transferRecordSchema = new mongoose.Schema({
     // =========================
     // 🔗 SHARING
     // =========================
-    reportId: String,                 // TR-XXXX
-    shareId: { type: String, unique: true },
+    reportId: String,
+    shareId: { type: String },
     qrCode: String,
 
     // =========================
