@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, TextInput,
@@ -8,23 +8,68 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { PatientCard } from '../components/Cards';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { setState, useStore } from '../store';
+import { searchPatients } from '../api/patients';
 
 export default function PatientListScreen({ navigation, route }) {
   const { patients } = useStore();
   const mode = route?.params?.mode; // 'transfer' | undefined
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
-  const filtered = patients.filter((p) => {
-    const q = query.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.phone?.includes(q) ||
-      p.id?.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    const q = query.trim();
+    if (!q) {
+      setSearchResults([]);
+      setSearchError('');
+      setIsSearching(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      setSearchError('');
+
+      try {
+        const results = await searchPatients(q);
+        if (cancelled) return;
+        setSearchResults(results);
+      } catch (error) {
+        if (cancelled) return;
+        setSearchResults([]);
+        setSearchError(error?.message || 'Unable to search patients');
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 350);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query]);
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return patients;
+    return searchResults;
+  }, [patients, query, searchResults]);
 
   const handleSelect = (patient) => {
+    setState((s) => {
+      const exists = s.patients.some((p) => p.id === patient.id);
+      if (exists) {
+        return {
+          ...s,
+          patients: s.patients.map((p) => (p.id === patient.id ? { ...p, ...patient } : p)),
+        };
+      }
+      return { ...s, patients: [...s.patients, patient] };
+    });
+
     if (mode === 'transfer') {
       navigation.navigate('TransferForm', { patientId: patient.id });
     } else {
@@ -67,11 +112,25 @@ export default function PatientListScreen({ navigation, route }) {
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          query.trim().length > 0 ? (
+            <View style={styles.searchMetaRow}>
+              {isSearching ? (
+                <Text style={[typography.bodySm, { color: colors.outline }]}>Searching...</Text>
+              ) : (
+                <Text style={[typography.bodySm, { color: colors.outline }]}>Results for "{query.trim()}"</Text>
+              )}
+              {searchError ? (
+                <Text style={[typography.bodySm, { color: colors.error }]}>{searchError}</Text>
+              ) : null}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🔍</Text>
             <Text style={[typography.bodyMd, { color: colors.outline, marginTop: spacing[3] }]}>
-              No patients found
+              {query.trim().length > 0 ? 'No patients found in backend search' : 'No patients found'}
             </Text>
           </View>
         }
@@ -135,6 +194,10 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing[5],
     paddingBottom: spacing[4],
+  },
+  searchMetaRow: {
+    marginBottom: spacing[3],
+    gap: spacing[1],
   },
   empty: { alignItems: 'center', paddingTop: spacing[12] },
   emptyIcon: { fontSize: 40 },

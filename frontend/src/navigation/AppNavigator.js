@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,6 +15,7 @@ import QRDisplayScreen from '../screens/QRDisplayScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import RecordViewerScreen from '../screens/RecordViewerScreen';
 import BottomTabBar from './BottomTabBar';
+import { loadPatientsFromBackend } from '../store';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -36,6 +37,12 @@ function MainTabs() {
 // Root stack — handles auth + all modal/push screens
 export default function AppNavigator() {
   const [isAuthed, setIsAuthed] = useState(false);
+
+  useEffect(() => {
+    if (isAuthed) {
+      loadPatientsFromBackend();
+    }
+  }, [isAuthed]);
 
   return (
     <NavigationContainer>

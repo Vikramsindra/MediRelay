@@ -1,19 +1,81 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
-  TouchableOpacity,
+  TouchableOpacity, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
-import { AlertCard } from '../components/Cards';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { setState, useStore } from '../store';
+import { getPatientById } from '../api/patients';
 
 export default function PatientProfileScreen({ navigation, route }) {
   const { patientId } = route.params;
   const { patients } = useStore();
-  const patient = patients.find((p) => p.id === patientId);
+  const localPatient = useMemo(() => patients.find((p) => p.id === patientId), [patients, patientId]);
+  const [remotePatient, setRemotePatient] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [loadError, setLoadError] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadPatient() {
+      setIsLoading(true);
+      setLoadError('');
+
+      try {
+        const fetchedPatient = await getPatientById(patientId);
+        if (cancelled) return;
+
+        setRemotePatient(fetchedPatient);
+        setState((s) => {
+          const exists = s.patients.some((p) => p.id === fetchedPatient.id);
+          if (exists) {
+            return {
+              ...s,
+              patients: s.patients.map((p) => (p.id === fetchedPatient.id ? { ...p, ...fetchedPatient } : p)),
+            };
+          }
+          return { ...s, patients: [...s.patients, fetchedPatient] };
+        });
+      } catch (error) {
+        if (cancelled) return;
+        setLoadError(error?.message || 'Unable to load patient details');
+      } finally {
+        if (!cancelled) setIsLoading(false);
+      }
+    }
+
+    loadPatient();
+    return () => {
+      cancelled = true;
+    };
+  }, [patientId]);
+
+  const patient = remotePatient || localPatient;
+
+  if (!patient && isLoading) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <View style={styles.headerBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <View style={styles.backRow}>
+              <AppIcon name="back" size={18} color={colors.primary} />
+              <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Back</Text>
+            </View>
+          </TouchableOpacity>
+          <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Patient Details</Text>
+          <View style={{ width: 60 }} />
+        </View>
+        <View style={styles.empty}>
+          <ActivityIndicator size="small" color={colors.primary} />
+          <Text style={[typography.bodyMd, { color: colors.outline, marginTop: spacing[3] }]}>Loading patient...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!patient) {
     return (
@@ -30,6 +92,9 @@ export default function PatientProfileScreen({ navigation, route }) {
         </View>
         <View style={styles.empty}>
           <Text style={[typography.bodyMd, { color: colors.outline }]}>Patient not found</Text>
+          {loadError ? (
+            <Text style={[typography.bodySm, { color: colors.error, marginTop: spacing[2] }]}>{loadError}</Text>
+          ) : null}
         </View>
       </SafeAreaView>
     );

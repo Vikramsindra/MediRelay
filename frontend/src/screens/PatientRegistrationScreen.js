@@ -9,7 +9,8 @@ import { LabeledInput, SimpleDropdown } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
-import { setState, getState } from '../store';
+import { setState } from '../store';
+import { createPatient, buildPatientCreatePayload } from '../api/patients';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
 const RELATIONS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Other'];
@@ -48,6 +49,8 @@ export default function PatientRegistrationScreen({ navigation }) {
 
   // Errors
   const [errors, setErrors] = useState({});
+  const [submitError, setSubmitError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const toggleCondition = (c) => {
     if (c === 'None') { setConditions([]); return; }
@@ -79,18 +82,38 @@ export default function PatientRegistrationScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = () => {
-    if (!validate()) return;
-    const newPatient = {
-      id: 'P' + Date.now(),
-      name, age: Number(age), sex, bloodGroup, phone,
-      emergencyContact: { name: ecName, phone: ecPhone, relation: ecRelation },
-      allergies: noAllergies ? [] : allergies,
-      conditions,
-      medications: noMeds ? [] : medications,
-    };
-    setState((s) => ({ ...s, patients: [...s.patients, newPatient] }));
-    navigation.goBack();
+  const handleSave = async () => {
+    if (saving || !validate()) return;
+
+    setSubmitError('');
+    setSaving(true);
+
+    try {
+      const payload = buildPatientCreatePayload({
+        name,
+        age,
+        sex,
+        bloodGroup,
+        phone,
+        ecName,
+        ecPhone,
+        ecRelation,
+        noAllergies,
+        allergies,
+        conditions,
+        noMeds,
+        medications,
+      });
+
+      const createdPatient = await createPatient(payload);
+
+      setState((s) => ({ ...s, patients: [...s.patients, createdPatient] }));
+      navigation.goBack();
+    } catch (error) {
+      setSubmitError(error?.message || 'Failed to register patient. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -229,7 +252,8 @@ export default function PatientRegistrationScreen({ navigation }) {
           )}
 
           <View style={{ height: spacing[8] }} />
-          <PrimaryButton label="Save Patient" onPress={handleSave} />
+          {submitError ? <Text style={styles.submitErrorText}>{submitError}</Text> : null}
+          <PrimaryButton label="Save Patient" onPress={handleSave} loading={saving} />
           <View style={{ height: spacing[8] }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -271,6 +295,7 @@ const styles = StyleSheet.create({
   },
   toggleBtnSelected: { backgroundColor: colors.primary, borderColor: colors.primary },
   errorText: { color: colors.error, fontSize: 13, marginTop: 4 },
+  submitErrorText: { color: colors.error, marginBottom: spacing[3], textAlign: 'center' },
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginBottom: spacing[4] },
   checkbox: {
     width: 22, height: 22, borderRadius: 6, borderWidth: 2,

@@ -1,5 +1,5 @@
 // Global mock store — simulates app state across screens
-// In production replace with Zustand / Redux / Context
+// Patients are loaded from backend on app initialization
 
 let _state = {
   doctor: {
@@ -9,38 +9,7 @@ let _state = {
     isLoggedIn: true,
   },
   isOnline: true,
-  patients: [
-    {
-      id: 'P001',
-      name: 'Ramesh Kumar',
-      age: 54,
-      sex: 'M',
-      bloodGroup: 'O+',
-      phone: '9876500001',
-      emergencyContact: { name: 'Sunita Kumar', phone: '9876500002', relation: 'Wife' },
-      allergies: [
-        { allergen: 'Penicillin', reaction: 'Anaphylaxis' },
-        { allergen: 'Aspirin', reaction: 'Rash' },
-      ],
-      conditions: ['Diabetes', 'Hypertension'],
-      medications: [
-        { name: 'Metoprolol', dose: '25mg', route: 'Oral', frequency: 'Twice daily', mustNotStop: true },
-        { name: 'Aspirin', dose: '75mg', route: 'Oral', frequency: 'Once daily', mustNotStop: false },
-      ],
-    },
-    {
-      id: 'P002',
-      name: 'Priya Mehta',
-      age: 32,
-      sex: 'F',
-      bloodGroup: 'B+',
-      phone: '9876500003',
-      emergencyContact: { name: 'Rajesh Mehta', phone: '9876500004', relation: 'Husband' },
-      allergies: [],
-      conditions: [],
-      medications: [],
-    },
-  ],
+  patients: [],
   transfers: [
     {
       id: 'TR-4820',
@@ -85,6 +54,57 @@ export function setState(updater) {
 export function subscribe(fn) {
   _listeners.add(fn);
   return () => _listeners.delete(fn);
+}
+
+export async function loadPatientsFromBackend() {
+  try {
+    const API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8080').replace(/\/$/, '');
+    const url = `${API_BASE_URL}/api/v1/patients/search`;
+    console.log('[Store] Loading patients from:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+    });
+
+    console.log('[Store] Fetch response status:', response.status, response.statusText);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.warn('[Store] Failed to fetch patients from backend:', response.statusText, 'body:', errorText);
+      return;
+    }
+
+    const text = await response.text();
+    console.log('[Store] Response text length:', text.length);
+    
+    if (!text) {
+      console.warn('[Store] Empty response text');
+      return;
+    }
+
+    let body;
+    try {
+      body = JSON.parse(text);
+    } catch (_error) {
+      console.warn('[Store] Failed to parse patients response:', _error?.message);
+      return;
+    }
+
+    console.log('[Store] Parsed response:', body?.success, 'data length:', Array.isArray(body?.data) ? body.data.length : 'not array');
+
+    if (!body?.success || !Array.isArray(body?.data)) {
+      console.warn('[Store] Unexpected patients response format');
+      return;
+    }
+
+    const { mapPatientFromApi } = require('../api/patients');
+    const mappedPatients = body.data.map(mapPatientFromApi);
+    console.log('[Store] Mapped', mappedPatients.length, 'patients');
+    setState((s) => ({ ...s, patients: mappedPatients }));
+  } catch (error) {
+    console.warn('[Store] Error loading patients from backend:', error?.message);
+  }
 }
 
 export function useStore() {
