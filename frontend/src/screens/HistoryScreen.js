@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity,
@@ -7,7 +7,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { StatusPill, SectionLabel } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { setState, useStore } from '../store';
+import { fetchTransfers } from '../api/transfers';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 function groupByDate(transfers) {
   const groups = {};
@@ -30,8 +32,31 @@ function formatTime(iso) {
 }
 
 export default function HistoryScreen({ navigation }) {
-  const { transfers } = useStore();
+  const { transfers, doctor } = useStore();
   const [activeTab, setActiveTab] = useState('Sent');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTransfers = async () => {
+      const doctorId = doctor?.userId || await getStoredDoctorId();
+      if (!doctorId) return;
+
+      try {
+        const items = await fetchTransfers({ doctorId });
+        if (cancelled) return;
+        setState((s) => ({ ...s, transfers: items }));
+      } catch (_error) {
+        if (cancelled) return;
+      }
+    };
+
+    loadTransfers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doctor?.userId]);
 
   const filtered = transfers.filter((t) =>
     activeTab === 'Sent' ? t.direction === 'sent' : t.direction === 'received',

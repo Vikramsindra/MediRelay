@@ -56,6 +56,7 @@ router.post("/", async (req, res) => {
 
         // Create transfer record
         const transfer = await Transfer.create({
+            patientId: patient._id,
             patient,
             sendingHospital,
             receivingHospital,
@@ -131,7 +132,7 @@ router.patch("/:id", async (req, res) => {
 // ==============================
 router.get("/", async (req, res) => {
     try {
-        const { patientId } = req.query;
+        const { patientId, doctorId } = req.query;
 
         let query = {};
         if (patientId) {
@@ -141,7 +142,33 @@ router.get("/", async (req, res) => {
                     message: "Invalid patientId"
                 });
             }
-            query = { "patient._id": patientId };
+            query = { patientId };
+        }
+
+        if (doctorId) {
+            if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+                return res.status(400).json({
+                    success: false,
+                    message: "Invalid doctorId"
+                });
+            }
+
+            const ownedPatients = await Patient.find({ doctorId }).select("_id");
+            const patientIds = ownedPatients.map((p) => p._id);
+
+            if (patientIds.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    data: []
+                });
+            }
+
+            query = {
+                ...query,
+                patientId: query.patientId
+                    ? query.patientId
+                    : { $in: patientIds }
+            };
         }
 
         const transfers = await Transfer.find(query).sort({ createdAt: -1 });

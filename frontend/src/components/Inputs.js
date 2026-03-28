@@ -11,7 +11,7 @@ import { AppIcon } from './AppIcon';
 export function LabeledInput({
   label, value, onChangeText, placeholder, keyboardType = 'default',
   error, required, autoFocus, multiline, numberOfLines, maxLength, editable = true,
-  style,
+  style, secureTextEntry = false, autoCapitalize = 'none', autoCorrect = false,
 }) {
   return (
     <View style={[styles.fieldWrap, style]}>
@@ -25,6 +25,9 @@ export function LabeledInput({
         placeholder={placeholder}
         placeholderTextColor={colors.outline}
         keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        autoCapitalize={autoCapitalize}
+        autoCorrect={autoCorrect}
         autoFocus={autoFocus}
         multiline={multiline}
         numberOfLines={numberOfLines}

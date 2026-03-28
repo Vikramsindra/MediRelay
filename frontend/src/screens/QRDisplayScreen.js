@@ -8,7 +8,8 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { SeverityBadge } from '../components/Badges';
 import { SecondaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { getState } from '../store';
+import { getTransferById } from '../api/transfers';
+import { setState, useStore } from '../store';
 
 // Minimal QR placeholder (real QR would use react-native-qrcode-svg)
 function QRPlaceholder({ value }) {
@@ -45,13 +46,46 @@ const STATUSES = ['Pending', 'Viewed', 'Acknowledged'];
 
 export default function QRDisplayScreen({ navigation, route }) {
   const { transferId } = route.params ?? {};
-  const state = getState();
-  const transfer = state.transfers.find((t) => t.id === transferId);
-  const shortLink = `medirelay.app/r/${transferId}`;
+  const { transfers } = useStore();
+  const [transfer, setTransfer] = useState(transfers.find((t) => t.id === transferId) || null);
+  const shortLink = transfer?.shareId
+    ? `medirelay.app/r/${transfer.shareId}`
+    : `medirelay.app/r/${transferId}`;
 
   // Simulate real-time status updates
   const [status, setStatus] = useState(transfer?.status ?? 'Pending');
   const [linkCopied, setLinkCopied] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTransfer = async () => {
+      if (!transferId) return;
+      try {
+        const fetched = await getTransferById(transferId);
+        if (cancelled) return;
+        setTransfer(fetched);
+        setStatus(fetched?.status || 'Pending');
+        setState((s) => {
+          const exists = s.transfers.some((t) => t.id === fetched.id);
+          return {
+            ...s,
+            transfers: exists
+              ? s.transfers.map((t) => (t.id === fetched.id ? fetched : t))
+              : [fetched, ...s.transfers],
+          };
+        });
+      } catch (_error) {
+        if (!cancelled) return;
+      }
+    };
+
+    loadTransfer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [transferId]);
 
   useEffect(() => {
     if (status === 'Acknowledged') return;

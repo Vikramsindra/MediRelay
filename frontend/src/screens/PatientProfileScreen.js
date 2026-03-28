@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity,
@@ -8,12 +8,45 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { AlertCard } from '../components/Cards';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { getState, setState, useStore } from '../store';
+import { getPatientById } from '../api/patients';
 
 export default function PatientProfileScreen({ navigation, route }) {
   const { patientId } = route.params;
-  const { patients } = useStore();
-  const patient = patients.find((p) => p.id === patientId);
+  const { patients, doctor } = useStore();
+  const localPatient = patients.find((p) => p.id === patientId);
+  const [patient, setPatient] = useState(localPatient || null);
+
+  useEffect(() => {
+    const doctorId = doctor?.userId || getState()?.doctor?.userId;
+    if (!doctorId || !patientId) return;
+
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const fetched = await getPatientById(patientId, doctorId);
+        if (cancelled) return;
+        setPatient(fetched);
+        setState((s) => {
+          const exists = s.patients.some((p) => p.id === fetched.id);
+          return {
+            ...s,
+            patients: exists
+              ? s.patients.map((p) => (p.id === fetched.id ? fetched : p))
+              : [fetched, ...s.patients],
+          };
+        });
+      } catch (_error) {
+        if (!cancelled) setPatient(localPatient || null);
+      }
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doctor?.userId, patientId]);
 
   if (!patient) {
     return (

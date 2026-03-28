@@ -2,6 +2,14 @@ const mongoose = require("mongoose");
 
 const transferRecordSchema = new mongoose.Schema({
 
+    // Owner Patient Reference
+    patientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "Patient",
+        required: true,
+        index: true
+    },
+
     // =========================
     // 👤 PATIENT DETAILS (Embedded)
     // =========================

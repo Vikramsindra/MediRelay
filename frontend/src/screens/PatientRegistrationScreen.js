@@ -10,6 +10,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { setState, getState } from '../store';
+import { buildPatientCreatePayload, createPatient } from '../api/patients';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
 const RELATIONS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Other'];
@@ -79,18 +80,38 @@ export default function PatientRegistrationScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!validate()) return;
-    const newPatient = {
-      id: 'P' + Date.now(),
-      name, age: Number(age), sex, bloodGroup, phone,
-      emergencyContact: { name: ecName, phone: ecPhone, relation: ecRelation },
-      allergies: noAllergies ? [] : allergies,
-      conditions,
-      medications: noMeds ? [] : medications,
-    };
-    setState((s) => ({ ...s, patients: [...s.patients, newPatient] }));
-    navigation.goBack();
+    const doctorId = getState()?.doctor?.userId;
+
+    if (!doctorId) {
+      setErrors((prev) => ({ ...prev, save: 'Login required. Please login again.' }));
+      return;
+    }
+
+    try {
+      const payload = buildPatientCreatePayload({
+        name,
+        age,
+        sex,
+        bloodGroup,
+        phone,
+        ecName,
+        ecPhone,
+        ecRelation,
+        noAllergies,
+        allergies,
+        conditions,
+        noMeds,
+        medications,
+      }, doctorId);
+
+      const createdPatient = await createPatient(payload);
+      setState((s) => ({ ...s, patients: [createdPatient, ...s.patients] }));
+      navigation.goBack();
+    } catch (error) {
+      setErrors((prev) => ({ ...prev, save: error?.message || 'Failed to save patient' }));
+    }
   };
 
   return (
@@ -230,6 +251,7 @@ export default function PatientRegistrationScreen({ navigation }) {
 
           <View style={{ height: spacing[8] }} />
           <PrimaryButton label="Save Patient" onPress={handleSave} />
+          {errors.save ? <Text style={styles.errorText}>{errors.save}</Text> : null}
           <View style={{ height: spacing[8] }} />
         </ScrollView>
       </KeyboardAvoidingView>

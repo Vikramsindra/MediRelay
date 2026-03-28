@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -15,18 +15,23 @@ import QRDisplayScreen from '../screens/QRDisplayScreen';
 import QRScannerScreen from '../screens/QRScannerScreen';
 import RecordViewerScreen from '../screens/RecordViewerScreen';
 import BottomTabBar from './BottomTabBar';
+import { logoutUser } from '../api/auth';
+import { clearAuthSession, loadAuthSession } from '../storage/authStorage';
+import { getState, setState } from '../store';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 // Bottom tab navigator — 3 tabs as per UX spec
-function MainTabs() {
+function MainTabs({ onLogout }) {
   return (
     <Tab.Navigator
       tabBar={(props) => <BottomTabBar {...props} />}
       screenOptions={{ headerShown: false }}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Home">
+        {(props) => <HomeScreen {...props} onLogout={onLogout} />}
+      </Tab.Screen>
       <Tab.Screen name="Patients" component={PatientListScreen} />
       <Tab.Screen name="History" component={HistoryScreen} />
     </Tab.Navigator>
@@ -36,6 +41,64 @@ function MainTabs() {
 // Root stack — handles auth + all modal/push screens
 export default function AppNavigator() {
   const [isAuthed, setIsAuthed] = useState(false);
+  const [isBootstrapping, setIsBootstrapping] = useState(true);
+
+  const handleLogout = async () => {
+    try {
+      const doctor = getState()?.doctor || null;
+      await logoutUser({ userId: doctor?.userId || '' });
+    } catch (_error) {
+      // Ignore logout network failures and continue local logout.
+    } finally {
+      await clearAuthSession();
+      setState((s) => ({
+        ...s,
+        doctor: {
+          ...s.doctor,
+          userId: '',
+          email: '',
+          isLoggedIn: false,
+        },
+      }));
+      setIsAuthed(false);
+    }
+  };
+
+  useEffect(() => {
+    let mounted = true;
+
+    const bootstrapAuth = async () => {
+      try {
+        const session = await loadAuthSession();
+        if (!mounted || !session?.userId) return;
+
+        setState((s) => ({
+          ...s,
+          doctor: {
+            ...s.doctor,
+            userId: session.userId,
+            email: session.email || '',
+            name: session.name || s.doctor?.name || '',
+            hospital: session.hospitalName || s.doctor?.hospital || '',
+            isLoggedIn: true,
+          },
+        }));
+        setIsAuthed(true);
+      } catch (_error) {
+        // Ignore bootstrap auth errors and show Auth screen.
+      } finally {
+        if (mounted) setIsBootstrapping(false);
+      }
+    };
+
+    bootstrapAuth();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (isBootstrapping) return null;
 
   return (
     <NavigationContainer>
@@ -46,7 +109,9 @@ export default function AppNavigator() {
           </Stack.Screen>
         ) : (
           <>
-            <Stack.Screen name="Main" component={MainTabs} />
+            <Stack.Screen name="Main">
+              {(props) => <MainTabs {...props} onLogout={handleLogout} />}
+            </Stack.Screen>
             <Stack.Screen name="PatientList" component={PatientListScreen} />
             <Stack.Screen name="PatientProfile" component={PatientProfileScreen} />
             <Stack.Screen name="PatientRegistration" component={PatientRegistrationScreen} />

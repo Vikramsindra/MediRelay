@@ -9,7 +9,16 @@ const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // � GET /patients → List patients
 router.get("/", async (req, res) => {
     try {
-        const patients = await Patient.find().sort({ createdAt: -1 }).limit(100);
+        const { doctorId } = req.query;
+
+        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid doctorId is required"
+            });
+        }
+
+        const patients = await Patient.find({ doctorId }).sort({ createdAt: -1 }).limit(100);
 
         res.status(200).json({
             success: true,
@@ -26,13 +35,21 @@ router.get("/", async (req, res) => {
 // 🔍 GET /patients/search?search=ram → Search patients
 router.get("/search", async (req, res) => {
     try {
-        const { search } = req.query;
+        const { search, doctorId } = req.query;
+
+        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid doctorId is required"
+            });
+        }
 
         // ❌ Block if search not provided
         if (!search || search.trim() === "") {
-            return res.status(400).json({
-                success: false,
-                message: "Search query is required"
+            const patients = await Patient.find({ doctorId }).sort({ createdAt: -1 }).limit(100);
+            return res.status(200).json({
+                success: true,
+                data: patients
             });
         }
 
@@ -40,6 +57,7 @@ router.get("/search", async (req, res) => {
 
         // ✅ Search across multiple fields
         const patients = await Patient.find({
+            doctorId,
             $or: [
                 { fullName: query },
                 { phone: query },
@@ -74,12 +92,19 @@ router.get("/search", async (req, res) => {
 // ➕ POST /patients → Register patient
 router.post("/", async (req, res) => {
     try {
-        const { fullName, age, sex } = req.body;
+        const { fullName, age, sex, doctorId } = req.body;
 
-        if (!fullName || !age || !sex) {
+        if (!fullName || !age || !sex || !doctorId) {
             return res.status(400).json({
                 success: false,
-                message: "fullName, age, and sex are required"
+                message: "doctorId, fullName, age, and sex are required"
+            });
+        }
+
+        if (!mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid doctor ID"
             });
         }
 
@@ -143,6 +168,15 @@ router.get("/doctor/:doctorId", async (req, res) => {
 // 📄 GET /patients/:id → Get single patient
 router.get("/:id", async (req, res) => {
     try {
+        const { doctorId } = req.query;
+
+        if (!doctorId || !mongoose.Types.ObjectId.isValid(doctorId)) {
+            return res.status(400).json({
+                success: false,
+                message: "Valid doctorId is required"
+            });
+        }
+
         if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
             return res.status(400).json({
                 success: false,
@@ -150,7 +184,7 @@ router.get("/:id", async (req, res) => {
             });
         }
 
-        const patient = await Patient.findById(req.params.id);
+        const patient = await Patient.findOne({ _id: req.params.id, doctorId });
 
         if (!patient) {
             return res.status(404).json({

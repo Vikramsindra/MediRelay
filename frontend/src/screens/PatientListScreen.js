@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList,
   TouchableOpacity, TextInput,
@@ -8,21 +8,51 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { PatientCard } from '../components/Cards';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { getState, setState, useStore } from '../store';
+import { searchPatients } from '../api/patients';
 
 export default function PatientListScreen({ navigation, route }) {
-  const { patients } = useStore();
+  const { patients, doctor } = useStore();
   const mode = route?.params?.mode; // 'transfer' | undefined
   const [query, setQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
 
-  const filtered = patients.filter((p) => {
-    const q = query.toLowerCase();
-    return (
-      p.name.toLowerCase().includes(q) ||
-      p.phone?.includes(q) ||
-      p.id?.toLowerCase().includes(q)
-    );
-  });
+  useEffect(() => {
+    const doctorId = doctor?.userId || getState()?.doctor?.userId;
+    if (!doctorId) return;
+
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      try {
+        setIsSearching(true);
+        setSearchError('');
+        const results = await searchPatients(query.trim(), doctorId);
+        if (cancelled) return;
+        setSearchResults(results);
+        if (!query.trim()) {
+          setState((s) => ({ ...s, patients: results }));
+        }
+      } catch (error) {
+        if (cancelled) return;
+        setSearchResults([]);
+        setSearchError(error?.message || 'Unable to fetch patients');
+      } finally {
+        if (!cancelled) setIsSearching(false);
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [query, doctor?.userId]);
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return patients;
+    return searchResults;
+  }, [patients, query, searchResults]);
 
   const handleSelect = (patient) => {
     if (mode === 'transfer') {
@@ -67,6 +97,18 @@ export default function PatientListScreen({ navigation, route }) {
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
+        ListHeaderComponent={
+          query.trim().length > 0 ? (
+            <View style={styles.searchMetaRow}>
+              {isSearching ? (
+                <Text style={[typography.bodySm, { color: colors.outline }]}>Searching...</Text>
+              ) : null}
+              {searchError ? (
+                <Text style={[typography.bodySm, { color: colors.error }]}>{searchError}</Text>
+              ) : null}
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyIcon}>🔍</Text>
@@ -135,6 +177,10 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing[5],
     paddingBottom: spacing[4],
+  },
+  searchMetaRow: {
+    marginBottom: spacing[3],
+    gap: spacing[1],
   },
   empty: { alignItems: 'center', paddingTop: spacing[12] },
   emptyIcon: { fontSize: 40 },

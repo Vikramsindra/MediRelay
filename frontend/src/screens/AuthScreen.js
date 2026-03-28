@@ -5,63 +5,147 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius } from '../theme';
-import { LabeledInput, OTPBoxes } from '../components/Inputs';
+import { LabeledInput } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
 import { setState } from '../store';
+import { loginUser, signupUser } from '../api/auth';
+import { saveAuthSession } from '../storage/authStorage';
 
-const STEPS = { PHONE: 'PHONE', OTP: 'OTP', PROFILE: 'PROFILE' };
+const STEPS = { LOGIN: 'LOGIN', SIGNUP: 'SIGNUP', PROFILE: 'PROFILE' };
 
 export default function AuthScreen({ onAuth }) {
-  const [step, setStep] = useState(STEPS.PHONE);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState(STEPS.LOGIN);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+  const [showSignupPassword, setShowSignupPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [authError, setAuthError] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('Doctor');
   const [hospital, setHospital] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [pendingAuth, setPendingAuth] = useState(null);
 
-  // Countdown timer for resend OTP
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendTimer]);
+  const normalizeEmail = (value) => String(value || '').trim().toLowerCase();
+  const isEmailValid = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizeEmail(value));
 
-  // Auto-submit when OTP is fully entered
-  useEffect(() => {
-    if (otp.length === 6) handleVerifyOtp();
-  }, [otp]);
+  const canSubmitLogin = isEmailValid(email) && password.length >= 6;
+  const canSubmitSignup = isEmailValid(email) && password.length >= 6 && confirmPassword.length >= 6;
 
-  const handleSendOtp = () => {
-    if (phone.length < 10) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep(STEPS.OTP);
-      setResendTimer(30);
-    }, 800);
+  const resetAuthForm = () => {
+    setAuthError('');
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
   };
 
-  const handleVerifyOtp = () => {
-    if (otp.length < 6) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // First login -> ask profile
-      setStep(STEPS.PROFILE);
-    }, 600);
+  const handleSignup = () => {
+    if (!canSubmitSignup) return;
+    if (password !== confirmPassword) {
+      setAuthError('Passwords do not match');
+      return;
+    }
+    setPendingAuth({ email: normalizeEmail(email), password });
+    setAuthError('');
+    setStep(STEPS.PROFILE);
   };
 
-  const handleSaveProfile = () => {
+  const handleLogin = async () => {
+    if (!canSubmitLogin) return;
+    try {
+      setLoading(true);
+      setAuthError('');
+      const authUser = await loginUser({ email: normalizeEmail(email), password });
+
+      if (!authUser?.userId) {
+        throw new Error('Missing userId from server');
+      }
+
+      await saveAuthSession({
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name,
+        hospitalName: authUser.hospitalName,
+      });
+
+      setState((s) => ({
+        ...s,
+        doctor: {
+          ...s.doctor,
+          userId: authUser.userId,
+          email: authUser.email,
+          name: authUser.name || s.doctor?.name || '',
+          hospital: authUser.hospitalName || s.doctor?.hospital || '',
+          isLoggedIn: true,
+        },
+      }));
+
+      onAuth?.();
+    } catch (error) {
+      setAuthError(error?.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveProfile = async () => {
     if (!name || !hospital) return;
-    setState((s) => ({
-      ...s,
-      doctor: { name, hospital, phone, role, isLoggedIn: true },
-    }));
-    onAuth?.();
+    if (!pendingAuth?.email || !pendingAuth?.password) {
+      setAuthError('Please complete signup details first');
+      setStep(STEPS.SIGNUP);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setAuthError('');
+
+      const authUser = await signupUser({
+        name,
+        email: pendingAuth.email,
+        hospitalName: hospital,
+        password: pendingAuth.password,
+      });
+
+      if (!authUser?.userId) {
+        throw new Error('Missing userId from server');
+      }
+
+      await saveAuthSession({
+        userId: authUser.userId,
+        email: authUser.email,
+        name: authUser.name || name,
+        hospitalName: authUser.hospitalName || hospital,
+      });
+
+      setState((s) => ({
+        ...s,
+        doctor: {
+          ...s.doctor,
+          userId: authUser.userId,
+          name: authUser.name || name,
+          hospital: authUser.hospitalName || hospital,
+          role,
+          email: authUser.email,
+          isLoggedIn: true,
+        },
+      }));
+
+      onAuth?.();
+    } catch (error) {
+      setAuthError(error?.message || 'Signup failed');
+      setStep(STEPS.SIGNUP);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    setAuthError('');
+  }, [step]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -84,63 +168,115 @@ export default function AuthScreen({ onAuth }) {
             </Text>
           </View>
 
-          {/* Step: Phone */}
-          {step === STEPS.PHONE && (
+          {/* Step: Login */}
+          {step === STEPS.LOGIN && (
             <View style={styles.card}>
               <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
-                Enter your phone number
+                Login with email
               </Text>
               <LabeledInput
-                label="Phone Number"
-                value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit mobile number"
-                keyboardType="phone-pad"
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="doctor@hospital.com"
+                keyboardType="email-address"
                 required
                 autoFocus
               />
+              <LabeledInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Minimum 6 characters"
+                secureTextEntry={!showLoginPassword}
+                required
+              />
+              <TouchableOpacity onPress={() => setShowLoginPassword((v) => !v)} style={styles.passwordToggleBtn}>
+                <Text style={[typography.bodySm, { color: colors.primary }]}>
+                  {showLoginPassword ? 'Hide password' : 'Show password'}
+                </Text>
+              </TouchableOpacity>
+              {authError ? (
+                <Text style={[typography.bodySm, { color: colors.error, marginBottom: spacing[4] }]}>{authError}</Text>
+              ) : null}
               <PrimaryButton
-                label="Send OTP"
-                onPress={handleSendOtp}
-                disabled={phone.length < 10}
+                label="Login"
+                onPress={handleLogin}
+                disabled={!canSubmitLogin}
                 loading={loading}
               />
+              <TouchableOpacity
+                onPress={() => {
+                  resetAuthForm();
+                  setStep(STEPS.SIGNUP);
+                }}
+                style={styles.authSwitchBtn}
+              >
+                <Text style={[typography.bodySm, { color: colors.primary }]}>New here? Create account</Text>
+              </TouchableOpacity>
             </View>
           )}
 
-          {/* Step: OTP */}
-          {step === STEPS.OTP && (
+          {/* Step: Sign Up */}
+          {step === STEPS.SIGNUP && (
             <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[2] }]}>
-                Enter OTP
+              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}> 
+                Sign up with email
               </Text>
-              <Text style={[typography.bodySm, { color: colors.outline, marginBottom: spacing[5] }]}>
-                Sent to +91 {phone}
-              </Text>
-              <OTPBoxes value={otp} onChange={setOtp} length={6} />
-              <View style={styles.resendRow}>
-                {resendTimer > 0 ? (
-                  <Text style={[typography.bodySm, { color: colors.outline, marginTop: spacing[5] }]}>
-                    Resend in {resendTimer}s
-                  </Text>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => { setOtp(''); setResendTimer(30); }}
-                    style={{ marginTop: spacing[5] }}
-                  >
-                    <Text style={[typography.bodyMd, { color: colors.primary }]}>Resend OTP</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {loading && (
-                <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginTop: spacing[4] }]}>
-                  Verifying…
+              <LabeledInput
+                label="Email"
+                value={email}
+                onChangeText={setEmail}
+                placeholder="doctor@hospital.com"
+                keyboardType="email-address"
+                required
+                autoFocus
+              />
+              <LabeledInput
+                label="Password"
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Minimum 6 characters"
+                secureTextEntry={!showSignupPassword}
+                required
+              />
+              <TouchableOpacity onPress={() => setShowSignupPassword((v) => !v)} style={styles.passwordToggleBtn}>
+                <Text style={[typography.bodySm, { color: colors.primary }]}>
+                  {showSignupPassword ? 'Hide password' : 'Show password'}
                 </Text>
-              )}
-              <TouchableOpacity onPress={() => { setStep(STEPS.PHONE); setOtp(''); }} style={{ marginTop: spacing[4] }}>
+              </TouchableOpacity>
+              <LabeledInput
+                label="Confirm Password"
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                placeholder="Re-enter password"
+                secureTextEntry={!showConfirmPassword}
+                required
+              />
+              <TouchableOpacity onPress={() => setShowConfirmPassword((v) => !v)} style={styles.passwordToggleBtn}>
+                <Text style={[typography.bodySm, { color: colors.primary }]}>
+                  {showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                </Text>
+              </TouchableOpacity>
+              {authError ? (
+                <Text style={[typography.bodySm, { color: colors.error, marginBottom: spacing[4] }]}>{authError}</Text>
+              ) : null}
+              <PrimaryButton
+                label="Create Account"
+                onPress={handleSignup}
+                disabled={!canSubmitSignup}
+                loading={loading}
+              />
+              <TouchableOpacity
+                onPress={() => {
+                  resetAuthForm();
+                  setStep(STEPS.LOGIN);
+                }}
+                style={styles.authSwitchBtn}
+              >
                 <View style={styles.changeNumberRow}>
                   <AppIcon name="back" size={14} color={colors.outline} />
-                  <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginLeft: spacing[1] }]}>Change number</Text>
+                  <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginLeft: spacing[1] }]}>Back to login</Text>
                 </View>
               </TouchableOpacity>
             </View>
@@ -228,7 +364,12 @@ const styles = StyleSheet.create({
     borderRadius: radius.xl,
     padding: spacing[6],
   },
-  resendRow: { alignItems: 'center' },
+  passwordToggleBtn: {
+    alignSelf: 'flex-end',
+    marginTop: -spacing[3],
+    marginBottom: spacing[4],
+  },
+  authSwitchBtn: { marginTop: spacing[4], alignItems: 'center' },
   roleRow: { flexDirection: 'row', gap: spacing[3] },
   roleBtn: {
     flex: 1,

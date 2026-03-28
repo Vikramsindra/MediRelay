@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity,
@@ -8,7 +8,10 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { TransferCard } from '../components/Cards';
 import { SectionLabel } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
-import { useStore } from '../store';
+import { SecondaryButton } from '../components/Buttons';
+import { setState, useStore } from '../store';
+import { fetchTransfers } from '../api/transfers';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 function formatTimeAgo(isoString) {
   const diff = Date.now() - new Date(isoString).getTime();
@@ -20,8 +23,31 @@ function formatTimeAgo(isoString) {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
-export default function HomeScreen({ navigation }) {
+export default function HomeScreen({ navigation, onLogout }) {
   const { doctor, isOnline, transfers } = useStore();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadTransfers = async () => {
+      const doctorId = doctor?.userId || await getStoredDoctorId();
+      if (!doctorId) return;
+
+      try {
+        const items = await fetchTransfers({ doctorId });
+        if (cancelled) return;
+        setState((s) => ({ ...s, transfers: items }));
+      } catch (_error) {
+        if (cancelled) return;
+      }
+    };
+
+    loadTransfers();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [doctor?.userId]);
 
   const incoming = transfers.filter(
     (t) => t.direction === 'received' && t.status === 'Pending',
@@ -63,7 +89,14 @@ export default function HomeScreen({ navigation }) {
               {doctor?.hospital}
             </Text>
           </View>
-          <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#1a6640' : colors.serious }]} />
+          <View style={styles.headerRight}>
+            <View style={[styles.onlineDot, { backgroundColor: isOnline ? '#1a6640' : colors.serious }]} />
+            <SecondaryButton
+              label="Logout"
+              iconName="close"
+              onPress={onLogout}
+            />
+          </View>
         </View>
 
         {/* Primary CTA */}
@@ -173,6 +206,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginBottom: spacing[6],
+  },
+  headerRight: {
+    alignItems: 'flex-end',
+    gap: spacing[2],
   },
   onlineDot: { width: 10, height: 10, borderRadius: 5, marginTop: 8 },
   newTransferBtn: {
