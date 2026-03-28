@@ -8,6 +8,7 @@ import { colors, typography, spacing, radius } from '../theme';
 import { LabeledInput, SimpleDropdown } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
+import { AppIcon } from '../components/AppIcon';
 import { setState, getState } from '../store';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
@@ -100,8 +101,9 @@ export default function PatientRegistrationScreen({ navigation }) {
       >
         {/* Header */}
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={[typography.titleMd, { color: colors.primary }]}>← Back</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <AppIcon name="back" size={18} color={colors.primary} />
+            <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Back</Text>
           </TouchableOpacity>
           <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Register Patient</Text>
           <View style={{ width: 60 }} />
@@ -152,7 +154,7 @@ export default function PatientRegistrationScreen({ navigation }) {
           <SectionHeader label="ALLERGIES" />
           <TouchableOpacity onPress={() => setNoAllergies(!noAllergies)} style={styles.checkRow}>
             <View style={[styles.checkbox, noAllergies && styles.checkboxChecked]}>
-              {noAllergies && <Text style={{ color: colors.onPrimary, fontSize: 12 }}>✓</Text>}
+              {noAllergies && <AppIcon name="check" size={12} color={colors.onPrimary} />}
             </View>
             <Text style={[typography.bodyMd, { color: colors.onSurface }]}>No known allergies</Text>
           </TouchableOpacity>
@@ -163,7 +165,7 @@ export default function PatientRegistrationScreen({ navigation }) {
                 {allergies.map((a, i) => (
                   <AllergyChip
                     key={i}
-                    label={`${a.allergen}${a.reaction ? ` → ${a.reaction}` : ''}`}
+                    label={`${a.allergen}${a.reaction ? `: ${a.reaction}` : ''}`}
                     onRemove={() => setAllergies((arr) => arr.filter((_, j) => j !== i))}
                   />
                 ))}
@@ -195,7 +197,7 @@ export default function PatientRegistrationScreen({ navigation }) {
           <SectionHeader label="PERMANENT MEDICATIONS" />
           <TouchableOpacity onPress={() => setNoMeds(!noMeds)} style={styles.checkRow}>
             <View style={[styles.checkbox, noMeds && styles.checkboxChecked]}>
-              {noMeds && <Text style={{ color: colors.onPrimary, fontSize: 12 }}>✓</Text>}
+              {noMeds && <AppIcon name="check" size={12} color={colors.onPrimary} />}
             </View>
             <Text style={[typography.bodyMd, { color: colors.onSurface }]}>No regular medications</Text>
           </TouchableOpacity>
@@ -208,7 +210,7 @@ export default function PatientRegistrationScreen({ navigation }) {
                     {m.name} · {m.dose} · {m.route}
                   </Text>
                   <TouchableOpacity onPress={() => setMedications((arr) => arr.filter((_, j) => j !== i))}>
-                    <Text style={{ color: colors.error }}>✕</Text>
+                    <AppIcon name="close" size={14} color={colors.error} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -249,6 +251,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing[5], paddingTop: spacing[4], paddingBottom: spacing[3],
   },
+  backBtn: { flexDirection: 'row', alignItems: 'center' },
   scroll: { paddingHorizontal: spacing[5], paddingTop: spacing[2] },
   sectionHeader: {
     backgroundColor: colors.surfaceContainerLow,

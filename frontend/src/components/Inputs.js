@@ -3,6 +3,7 @@ import {
   View, Text, TextInput, StyleSheet, TouchableOpacity, ScrollView,
 } from 'react-native';
 import { colors, typography, spacing, radius, shadow } from '../theme';
+import { AppIcon } from './AppIcon';
 
 /**
  * LabeledInput — standard input with label, error, placeholder hint
@@ -100,7 +101,10 @@ export function VitalInput({ label, value, onChangeText, unit, rangePlaceholder,
         ) : null}
       </View>
       {outOfRange ? (
-        <Text style={[typography.bodySm, { color: colors.serious, marginTop: 2 }]}>⚠ Value outside normal range</Text>
+        <View style={styles.warningRow}>
+          <AppIcon name="warning" size={14} color={colors.serious} />
+          <Text style={[typography.bodySm, { color: colors.serious, marginLeft: spacing[1.5] }]}>Value outside normal range</Text>
+        </View>
       ) : null}
     </View>
   );
@@ -127,7 +131,7 @@ export function SimpleDropdown({ label, options, value, onChange, required }) {
         <Text style={[typography.bodyMd, { color: value ? colors.onSurface : colors.outline, flex: 1 }]}>
           {value || 'Select…'}
         </Text>
-        <Text style={{ color: colors.outline }}>{open ? '▲' : '▼'}</Text>
+        <AppIcon name={open ? 'chevron-up' : 'chevron-down'} size={16} color={colors.outline} />
       </TouchableOpacity>
       {open && (
         <View style={[styles.dropdownList, shadow.md]}>
@@ -209,6 +213,7 @@ const styles = StyleSheet.create({
   bpRow: { flexDirection: 'row', alignItems: 'center' },
   bpField: { flex: 1, textAlign: 'center' },
   vitalWrap: { marginBottom: spacing[4] },
+  warningRow: { flexDirection: 'row', alignItems: 'center', marginTop: 2 },
   vitalRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing[1.5] },
   vitalInput: { flex: 1 },
   dropdownTrigger: { flexDirection: 'row', alignItems: 'center' },

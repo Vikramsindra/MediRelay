@@ -3,11 +3,12 @@ import {
   TouchableOpacity, Text, StyleSheet, ActivityIndicator, View,
 } from 'react-native';
 import { colors, typography, spacing, radius, touchTarget, shadow } from '../theme';
+import { AppIcon } from './AppIcon';
 
 /**
  * PrimaryButton — full-width 56px CTA
  */
-export function PrimaryButton({ label, onPress, disabled, loading, icon }) {
+export function PrimaryButton({ label, onPress, disabled, loading, icon, iconName, iconColor }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -19,6 +20,7 @@ export function PrimaryButton({ label, onPress, disabled, loading, icon }) {
         <ActivityIndicator color={colors.onPrimary} size="small" />
       ) : (
         <View style={styles.row}>
+          {iconName ? <AppIcon name={iconName} size={18} color={iconColor ?? colors.onPrimary} /> : null}
           {icon && <Text style={styles.primaryIcon}>{icon}</Text>}
           <Text style={[typography.titleMd, { color: colors.onPrimary }]}>{label}</Text>
         </View>
@@ -30,7 +32,7 @@ export function PrimaryButton({ label, onPress, disabled, loading, icon }) {
 /**
  * SecondaryButton — ghost / tonal variant
  */
-export function SecondaryButton({ label, onPress, disabled, icon }) {
+export function SecondaryButton({ label, onPress, disabled, icon, iconName }) {
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -39,6 +41,7 @@ export function SecondaryButton({ label, onPress, disabled, icon }) {
       style={[styles.secondary, disabled && styles.secondaryDisabled]}
     >
       <View style={styles.row}>
+        {iconName ? <AppIcon name={iconName} size={16} color={disabled ? colors.outline : colors.primary} /> : null}
         {icon && <Text style={styles.secondaryIcon}>{icon}</Text>}
         <Text style={[typography.titleMd, { color: disabled ? colors.outline : colors.primary }]}>{label}</Text>
       </View>
@@ -128,9 +131,9 @@ export function CategoryButton({ label, selected, onPress, emoji }) {
         !selected && { backgroundColor: colors.surfaceContainerLowest, borderColor: colors.outlineVariant },
       ]}
     >
-      {emoji ? <Text style={styles.categoryEmoji}>{emoji}</Text> : null}
       <Text
-        style={[typography.titleSm, { color: selected ? colors.onPrimary : colors.onSurface, textAlign: 'center' }]}
+        style={[typography.labelMd, { color: selected ? colors.onPrimary : colors.onSurface, textAlign: 'center' }]}
+        numberOfLines={2}
       >
         {label}
       </Text>
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: radius.md,
     borderWidth: 1.5,
-    padding: spacing[3],
+    padding: spacing[2],
     minHeight: 64,
     flex: 1,
   },

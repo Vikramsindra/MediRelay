@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, KeyboardAvoidingView, Platform,
@@ -9,17 +9,18 @@ import { LabeledInput, BPInput, VitalInput, SimpleDropdown } from '../components
 import { PrimaryButton, SecondaryButton, CategoryButton, ToggleGroup } from '../components/Buttons';
 import { MedCard } from '../components/Cards';
 import { ConditionChip } from '../components/Badges';
+import { AppIcon } from '../components/AppIcon';
 import { getState, setState } from '../store';
 
 const CONDITION_CATEGORIES = [
-  { label: 'Cardiac',      emoji: '❤️' },
-  { label: 'Neuro',        emoji: '🧠' },
-  { label: 'Trauma',       emoji: '🩹' },
-  { label: 'Obstetric',    emoji: '🤱' },
-  { label: 'Respiratory',  emoji: '🫁' },
-  { label: 'Renal',        emoji: '🫘' },
-  { label: 'Neonatal',     emoji: '👶' },
-  { label: 'Other',        emoji: '⚕️' },
+  { label: 'Cardiac' },
+  { label: 'Neuro' },
+  { label: 'Trauma' },
+  { label: 'Obstetric' },
+  { label: 'Respiratory' },
+  { label: 'Renal' },
+  { label: 'Neonatal' },
+  { label: 'Other' },
 ];
 
 const TRANSFER_REASONS = {
@@ -80,11 +81,47 @@ export default function TransferFormScreen({ navigation, route }) {
   const [gcs, setGcs] = useState('');
   const [bsl, setBsl] = useState('');
 
-  // Section 3 – Condition specific (generic fields shown)
-  const [condField1, setCondField1] = useState('');
-  const [condField2, setCondField2] = useState('');
-  const [condBool1, setCondBool1] = useState('');
-  const [condBool2, setCondBool2] = useState('');
+  // Section 3 – Condition specific
+  // Cardiac
+  const [cardiacOnsetTime, setCardiacOnsetTime] = useState('');
+  const [cardiacEcgDone, setCardiacEcgDone] = useState('');
+  const [cardiacEcgFindings, setCardiacEcgFindings] = useState('');
+  const [cardiacThrombolysis, setCardiacThrombolysis] = useState('');
+
+  // Neuro
+  const [neuroOnsetTime, setNeuroOnsetTime] = useState('');
+  const [neuroStrokeType, setNeuroStrokeType] = useState('');
+  const [neuroCtDone, setNeuroCtDone] = useState('');
+  const [neuroCtFindings, setNeuroCtFindings] = useState('');
+  const [neuroSeizureActive, setNeuroSeizureActive] = useState('');
+
+  // Obstetric
+  const [obsGestationalAge, setObsGestationalAge] = useState('');
+  const [obsRhFactor, setObsRhFactor] = useState('');
+  const [obsFetalHr, setObsFetalHr] = useState('');
+  const [obsHighRiskReason, setObsHighRiskReason] = useState('');
+
+  // Respiratory
+  const [respOxygenRequired, setRespOxygenRequired] = useState('');
+  const [respOnVentilator, setRespOnVentilator] = useState('');
+  const [respVentilatorSettings, setRespVentilatorSettings] = useState('');
+
+  // Renal
+  const [renalUrineOutput, setRenalUrineOutput] = useState('');
+  const [renalOnDialysis, setRenalOnDialysis] = useState('');
+  const [renalCreatinine, setRenalCreatinine] = useState('');
+
+  // Trauma
+  const [traumaMechanism, setTraumaMechanism] = useState('');
+  const [traumaMajorInjuries, setTraumaMajorInjuries] = useState('');
+  const [traumaSurgeryNeeded, setTraumaSurgeryNeeded] = useState('');
+
+  // Neonatal
+  const [neoGestationalAge, setNeoGestationalAge] = useState('');
+  const [neoBirthWeight, setNeoBirthWeight] = useState('');
+  const [neoApgarScore, setNeoApgarScore] = useState('');
+  const [neoDeliveryType, setNeoDeliveryType] = useState('');
+  const [otherClinicalDetails, setOtherClinicalDetails] = useState('');
 
   // Section 4 – Medications
   const [activeMeds, setActiveMeds] = useState(patient?.medications ?? []);
@@ -135,11 +172,21 @@ export default function TransferFormScreen({ navigation, route }) {
       to: receivingHospital,
       status: 'Pending',
       createdAt: new Date().toISOString(),
-      vitals: { bpSys, bpDia, hr, spo2, temp, rr },
+      vitals: { bpSys, bpDia, hr, spo2, temp, rr, gcs: isNeuro || category === 'Trauma' ? gcs : null, bsl: isDiabetic ? bsl : null },
       summary,
       investigations,
       transferMode,
       activeMeds,
+      conditionDetails: {
+        cardiac: category === 'Cardiac' ? { onsetTime: cardiacOnsetTime, ecgDone: cardiacEcgDone, ecgFindings: cardiacEcgFindings, thrombolysis: cardiacThrombolysis } : null,
+        neuro: category === 'Neuro' ? { onsetTime: neuroOnsetTime, strokeType: neuroStrokeType, ctDone: neuroCtDone, ctFindings: neuroCtFindings, seizureActive: neuroSeizureActive } : null,
+        obstetric: category === 'Obstetric' ? { gestationalAge: obsGestationalAge, rhFactor: obsRhFactor, fetalHr: obsFetalHr, highRiskReason: obsHighRiskReason } : null,
+        respiratory: category === 'Respiratory' ? { oxygenRequired: respOxygenRequired, onVentilator: respOnVentilator, ventilatorSettings: respVentilatorSettings } : null,
+        renal: category === 'Renal' ? { urineOutput: renalUrineOutput, onDialysis: renalOnDialysis, creatinine: renalCreatinine } : null,
+        trauma: category === 'Trauma' ? { mechanism: traumaMechanism, majorInjuries: traumaMajorInjuries, surgeryNeeded: traumaSurgeryNeeded } : null,
+        neonatal: category === 'Neonatal' ? { gestationalAge: neoGestationalAge, birthWeight: neoBirthWeight, apgarScore: neoApgarScore, deliveryType: neoDeliveryType } : null,
+        other: category === 'Other' ? { clinicalDetails: otherClinicalDetails } : null,
+      },
     };
 
     setState((s) => ({
@@ -164,8 +211,9 @@ export default function TransferFormScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => {
             if (currentStep > 0) setCurrentStep((s) => s - 1);
             else navigation.goBack();
-          }}>
-            <Text style={[typography.titleMd, { color: colors.primary }]}>← Back</Text>
+          }} style={styles.backBtn}>
+            <AppIcon name="back" size={18} color={colors.primary} />
+            <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Back</Text>
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={[typography.titleMd, { color: colors.onSurface }]}>New Transfer</Text>
@@ -193,13 +241,13 @@ export default function TransferFormScreen({ navigation, route }) {
               </Text>
               <View style={styles.categoryGrid}>
                 {CONDITION_CATEGORIES.map((c) => (
-                  <CategoryButton
-                    key={c.label}
-                    label={c.label}
-                    emoji={c.emoji}
-                    selected={category === c.label}
-                    onPress={() => { setCategory(c.label); setTransferReason(''); }}
-                  />
+                  <View key={c.label} style={styles.categoryButtonWrapper}>
+                    <CategoryButton
+                      label={c.label}
+                      selected={category === c.label}
+                      onPress={() => { setCategory(c.label); setTransferReason(''); }}
+                    />
+                  </View>
                 ))}
               </View>
 
@@ -267,22 +315,122 @@ export default function TransferFormScreen({ navigation, route }) {
           {currentStep === 2 && (
             <View>
               <StepHeader label={category ? `${category} Details` : 'Condition Details'} />
-              <LabeledInput label="Onset Time" value={condField1} onChangeText={setCondField1}
-                placeholder="e.g. 10:30 AM" />
-              <ToggleGroup
-                options={['Yes', 'No']}
-                value={condBool1}
-                onChange={setCondBool1}
-              />
-              {condBool1 === 'Yes' && (
-                <LabeledInput label="Findings" value={condField2} onChangeText={setCondField2}
-                  placeholder="Describe findings…" multiline numberOfLines={3} />
+
+              {/* CARDIAC */}
+              {category === 'Cardiac' && (
+                <View>
+                  <LabeledInput label="Symptom Onset Time" value={cardiacOnsetTime} 
+                    onChangeText={setCardiacOnsetTime} placeholder="e.g. 10:30 AM" />
+                  <Text style={styles.conditionFieldLabel}>ECG Done</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={cardiacEcgDone} onChange={setCardiacEcgDone} />
+                  {cardiacEcgDone === 'Yes' && (
+                    <LabeledInput label="ECG Findings" value={cardiacEcgFindings} 
+                      onChangeText={setCardiacEcgFindings} placeholder="Describe ECG findings…" 
+                      multiline numberOfLines={3} />
+                  )}
+                  <Text style={styles.conditionFieldLabel}>Thrombolysis Given</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={cardiacThrombolysis} onChange={setCardiacThrombolysis} />
+                </View>
               )}
-              <ToggleGroup
-                options={['Yes', 'No']}
-                value={condBool2}
-                onChange={setCondBool2}
-              />
+
+              {/* NEURO */}
+              {category === 'Neuro' && (
+                <View>
+                  <LabeledInput label="Symptom Onset Time" value={neuroOnsetTime} 
+                    onChangeText={setNeuroOnsetTime} placeholder="e.g. 10:30 AM" />
+                  <Text style={styles.conditionFieldLabel}>Stroke Type</Text>
+                  <ToggleGroup options={['Ischemic', 'Hemorrhagic', 'Unknown']} 
+                    value={neuroStrokeType} onChange={setNeuroStrokeType} />
+                  <Text style={styles.conditionFieldLabel}>CT Done</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={neuroCtDone} onChange={setNeuroCtDone} />
+                  {neuroCtDone === 'Yes' && (
+                    <LabeledInput label="CT Findings" value={neuroCtFindings} 
+                      onChangeText={setNeuroCtFindings} placeholder="Describe CT findings…" 
+                      multiline numberOfLines={3} />
+                  )}
+                  <Text style={styles.conditionFieldLabel}>Seizure Active</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={neuroSeizureActive} onChange={setNeuroSeizureActive} />
+                </View>
+              )}
+
+              {/* OBSTETRIC */}
+              {category === 'Obstetric' && (
+                <View>
+                  <VitalInput label="Gestational Age" value={obsGestationalAge} 
+                    onChangeText={setObsGestationalAge} unit="weeks" rangePlaceholder="24–42" />
+                  <Text style={styles.conditionFieldLabel}>Rh Factor</Text>
+                  <ToggleGroup options={['Positive', 'Negative']} value={obsRhFactor} onChange={setObsRhFactor} />
+                  <VitalInput label="Fetal Heart Rate" value={obsFetalHr} 
+                    onChangeText={setObsFetalHr} unit="bpm" rangePlaceholder="120–160" />
+                  <SimpleDropdown label="High Risk Reason" 
+                    options={['Eclampsia', 'Placenta Previa', 'Abruption', 'Preeclampsia', 'Other']}
+                    value={obsHighRiskReason} onChange={setObsHighRiskReason} />
+                </View>
+              )}
+
+              {/* RESPIRATORY */}
+              {category === 'Respiratory' && (
+                <View>
+                  <LabeledInput label="Oxygen Required" value={respOxygenRequired} 
+                    onChangeText={setRespOxygenRequired} placeholder="e.g. 4L via mask" />
+                  <Text style={styles.conditionFieldLabel}>On Ventilator</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={respOnVentilator} onChange={setRespOnVentilator} />
+                  {respOnVentilator === 'Yes' && (
+                    <LabeledInput label="Ventilator Settings" value={respVentilatorSettings} 
+                      onChangeText={setRespVentilatorSettings} placeholder="e.g. AC/VC 500/16" 
+                      multiline numberOfLines={2} />
+                  )}
+                </View>
+              )}
+
+              {/* RENAL */}
+              {category === 'Renal' && (
+                <View>
+                  <VitalInput label="Urine Output" value={renalUrineOutput} 
+                    onChangeText={setRenalUrineOutput} unit="ml/hr" rangePlaceholder="0–200" />
+                  <Text style={styles.conditionFieldLabel}>On Dialysis</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={renalOnDialysis} onChange={setRenalOnDialysis} />
+                  <VitalInput label="Last Creatinine" value={renalCreatinine} 
+                    onChangeText={setRenalCreatinine} unit="mg/dL" rangePlaceholder="0.7–1.3" />
+                </View>
+              )}
+
+              {/* TRAUMA */}
+              {category === 'Trauma' && (
+                <View>
+                  <SimpleDropdown label="Mechanism of Injury" 
+                    options={['RTA', 'Fall', 'Assault', 'Penetrating', 'Crush', 'Burn', 'Other']}
+                    value={traumaMechanism} onChange={setTraumaMechanism} />
+                  <LabeledInput label="Major Injuries" value={traumaMajorInjuries} 
+                    onChangeText={setTraumaMajorInjuries} placeholder="Describe major injuries…" 
+                    multiline numberOfLines={3} />
+                  <Text style={styles.conditionFieldLabel}>Surgery Needed</Text>
+                  <ToggleGroup options={['Yes', 'No']} value={traumaSurgeryNeeded} onChange={setTraumaSurgeryNeeded} />
+                </View>
+              )}
+
+              {/* NEONATAL */}
+              {category === 'Neonatal' && (
+                <View>
+                  <VitalInput label="Gestational Age" value={neoGestationalAge} 
+                    onChangeText={setNeoGestationalAge} unit="weeks" rangePlaceholder="24–42" />
+                  <VitalInput label="Birth Weight" value={neoBirthWeight} 
+                    onChangeText={setNeoBirthWeight} unit="grams" rangePlaceholder="500–5000" />
+                  <VitalInput label="APGAR Score" value={neoApgarScore} 
+                    onChangeText={setNeoApgarScore} unit="/10" rangePlaceholder="0–10" />
+                  <Text style={styles.conditionFieldLabel}>Delivery Type</Text>
+                  <ToggleGroup options={['Normal', 'LSCS']} value={neoDeliveryType} onChange={setNeoDeliveryType} />
+                </View>
+              )}
+
+              {/* OTHER */}
+              {!['Cardiac', 'Neuro', 'Obstetric', 'Respiratory', 'Renal', 'Trauma', 'Neonatal'].includes(category) && category && (
+                <View>
+                  <LabeledInput label="Clinical Details" value={otherClinicalDetails} 
+                    onChangeText={setOtherClinicalDetails} placeholder="Describe clinical details…" 
+                    multiline numberOfLines={4} />
+                </View>
+              )}
             </View>
           )}
 
@@ -297,13 +445,13 @@ export default function TransferFormScreen({ navigation, route }) {
                 <View key={i} style={{ position: 'relative' }}>
                   <MedCard
                     name={m.name} dose={m.dose} route={m.route}
-                    frequency={m.frequency} mustNotStop={m.mustNotStop}
+                    frequency={m.frequency} mustNotStop={m.mustNotStop} showMustNotStopBadge={false}
                   />
                   <TouchableOpacity
                     onPress={() => setActiveMeds((arr) => arr.filter((_, j) => j !== i))}
                     style={styles.removeMedBtn}
                   >
-                    <Text style={{ color: colors.outline, fontSize: 16 }}>✕</Text>
+                    <AppIcon name="close" size={16} color={colors.outline} />
                   </TouchableOpacity>
                   {/* Must not stop toggle */}
                   <TouchableOpacity
@@ -312,9 +460,12 @@ export default function TransferFormScreen({ navigation, route }) {
                     ))}
                     style={styles.mustNotStopToggle}
                   >
-                    <Text style={[typography.labelMd, { color: m.mustNotStop ? colors.error : colors.outline }]}>
-                      {m.mustNotStop ? '⚠ Must NOT stop' : 'Mark must not stop'}
-                    </Text>
+                    <View style={styles.mustNotStopRow}>
+                      {m.mustNotStop ? <AppIcon name="warning" size={14} color={colors.error} /> : null}
+                      <Text style={[typography.labelMd, { color: m.mustNotStop ? colors.error : colors.outline, marginLeft: m.mustNotStop ? spacing[1.5] : 0 }]}> 
+                        {m.mustNotStop ? 'Must NOT stop' : 'Mark must not stop'}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 </View>
               ))}
@@ -330,7 +481,7 @@ export default function TransferFormScreen({ navigation, route }) {
                 label="Clinical Summary"
                 value={summary}
                 onChangeText={(t) => setSummary(t.slice(0, 900))}
-                placeholder="Tap to type or use 🎤 to dictate…"
+                placeholder="Tap to type or use mic to dictate..."
                 multiline
                 numberOfLines={5}
                 required
@@ -379,7 +530,8 @@ export default function TransferFormScreen({ navigation, route }) {
           <View style={{ height: spacing[4] }} />
 
           <PrimaryButton
-            label={currentStep < STEPS.length - 1 ? `Next: ${STEPS[currentStep + 1]} →` : 'Submit & Generate QR'}
+            label={currentStep < STEPS.length - 1 ? `Next: ${STEPS[currentStep + 1]}` : 'Submit & Generate QR'}
+            iconName={currentStep < STEPS.length - 1 ? 'chevron-right' : undefined}
             onPress={handleNext}
             disabled={!canProceed()}
           />
@@ -396,6 +548,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing[5], paddingTop: spacing[4], paddingBottom: spacing[2],
   },
+  backBtn: { flexDirection: 'row', alignItems: 'center' },
   progressWrap: {
     flexDirection: 'row', alignItems: 'center', gap: spacing[3],
     paddingHorizontal: spacing[5], marginBottom: spacing[2],
@@ -405,16 +558,32 @@ const styles = StyleSheet.create({
   },
   progressFill: { height: '100%', backgroundColor: colors.primary, borderRadius: radius.full },
   scroll: { paddingHorizontal: spacing[5], paddingTop: spacing[4] },
-  categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  categoryGrid: { 
+    flexDirection: 'row', 
+    flexWrap: 'wrap', 
+    gap: spacing[3],
+    justifyContent: 'space-between',
+  },
+  categoryButtonWrapper: {
+    width: '31%',
+    aspectRatio: 1,
+  },
+  conditionFieldLabel: {
+    ...typography.labelSm,
+    color: colors.outline,
+    marginTop: spacing[3],
+    marginBottom: spacing[2],
+  },
   chipWrap: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: spacing[4] },
   removeMedBtn: { position: 'absolute', top: spacing[3], right: spacing[3] },
   mustNotStopToggle: {
     alignSelf: 'flex-start',
-    marginTop: -spacing[2],
+    marginTop: 0,
     marginBottom: spacing[3],
     paddingHorizontal: spacing[3],
     paddingVertical: spacing[1.5],
     backgroundColor: colors.surfaceContainerLow,
     borderRadius: radius.full,
   },
+  mustNotStopRow: { flexDirection: 'row', alignItems: 'center' },
 });

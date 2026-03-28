@@ -6,6 +6,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { StatusPill, SectionLabel } from '../components/Badges';
+import { AppIcon } from '../components/AppIcon';
 import { useStore } from '../store';
 
 function groupByDate(transfers) {
@@ -70,7 +71,7 @@ export default function HistoryScreen({ navigation }) {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>📭</Text>
+            <AppIcon name="warning" size={32} color={colors.outline} />
             <Text style={[typography.bodyMd, { color: colors.outline, marginTop: spacing[3] }]}>
               No {activeTab.toLowerCase()} transfers
             </Text>
@@ -102,7 +103,7 @@ export default function HistoryScreen({ navigation }) {
                   </Text>
                   <View style={styles.cardFooter}>
                     <Text style={[typography.bodySm, { color: colors.outline }]}>
-                      {t.direction === 'sent' ? `→ ${t.to}` : `← ${t.from}`}
+                      {t.direction === 'sent' ? `To: ${t.to}` : `From: ${t.from}`}
                     </Text>
                     <StatusPill status={t.status} />
                   </View>

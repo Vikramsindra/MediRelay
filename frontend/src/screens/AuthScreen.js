@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius } from '../theme';
 import { LabeledInput, OTPBoxes } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
+import { AppIcon } from '../components/AppIcon';
 import { setState } from '../store';
 
 const STEPS = { PHONE: 'PHONE', OTP: 'OTP', PROFILE: 'PROFILE' };
@@ -48,7 +49,7 @@ export default function AuthScreen({ onAuth }) {
     setLoading(true);
     setTimeout(() => {
       setLoading(false);
-      // First login → ask profile
+      // First login -> ask profile
       setStep(STEPS.PROFILE);
     }, 600);
   };
@@ -73,7 +74,7 @@ export default function AuthScreen({ onAuth }) {
           {/* Logo */}
           <View style={styles.logoBlock}>
             <View style={styles.logoCircle}>
-              <Text style={styles.logoEmoji}>🏥</Text>
+              <AppIcon name="check" size={28} color={colors.primary} />
             </View>
             <Text style={[typography.displayMd, { color: colors.primary, marginTop: spacing[4] }]}>
               MediRelay
@@ -137,9 +138,10 @@ export default function AuthScreen({ onAuth }) {
                 </Text>
               )}
               <TouchableOpacity onPress={() => { setStep(STEPS.PHONE); setOtp(''); }} style={{ marginTop: spacing[4] }}>
-                <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center' }]}>
-                  ← Change number
-                </Text>
+                <View style={styles.changeNumberRow}>
+                  <AppIcon name="back" size={14} color={colors.outline} />
+                  <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginLeft: spacing[1] }]}>Change number</Text>
+                </View>
               </TouchableOpacity>
             </View>
           )}
@@ -220,7 +222,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoEmoji: { fontSize: 36 },
+  changeNumberRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.xl,

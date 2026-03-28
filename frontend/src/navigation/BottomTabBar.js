@@ -1,11 +1,12 @@
 import React from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing, radius, shadow } from '../theme';
+import { AppIcon } from '../components/AppIcon';
 
 const TABS = [
-  { name: 'Home',     icon: '🏠', label: 'Home' },
-  { name: 'Patients', icon: '👥', label: 'Patients' },
-  { name: 'History',  icon: '📋', label: 'History' },
+  { name: 'Home',     iconName: 'home', label: 'Home' },
+  { name: 'Patients', iconName: 'users', label: 'Patients' },
+  { name: 'History',  iconName: 'clock', label: 'History' },
 ];
 
 export default function BottomTabBar({ state, descriptors, navigation }) {
@@ -21,7 +22,11 @@ export default function BottomTabBar({ state, descriptors, navigation }) {
             activeOpacity={0.75}
           >
             <View style={[styles.iconWrap, isFocused && styles.iconWrapActive]}>
-              <Text style={styles.icon}>{tab.icon}</Text>
+              <AppIcon
+                name={tab.iconName}
+                size={18}
+                color={isFocused ? colors.primary : colors.outline}
+              />
             </View>
             <Text style={[
               typography.labelMd,
@@ -55,5 +60,4 @@ const styles = StyleSheet.create({
   iconWrapActive: {
     backgroundColor: colors.secondaryContainer,
   },
-  icon: { fontSize: 18 },
 });

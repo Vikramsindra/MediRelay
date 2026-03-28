@@ -89,10 +89,27 @@ export function subscribe(fn) {
 
 export function useStore() {
   const { useState, useEffect } = require('react');
-  const [s, setS] = useState(_state);
+  const [s, setS] = useState(_normalizeState(_state));
   useEffect(() => {
-    const unsub = subscribe(setS);
+    const unsub = subscribe((nextState) => {
+      setS(_normalizeState(nextState));
+    });
     return unsub;
   }, []);
   return s;
+}
+
+function _normalizeState(state) {
+  return {
+    ...state,
+    patients: (state.patients || []).map(p => ({
+      ...p,
+      allergies: Array.isArray(p.allergies) ? p.allergies.map(a => {
+        if (typeof a === 'object' && a !== null && 'allergen' in a) {
+          return { allergen: String(a.allergen || ''), reaction: String(a.reaction || '') };
+        }
+        return { allergen: String(a || ''), reaction: '' };
+      }) : [],
+    })),
+  };
 }

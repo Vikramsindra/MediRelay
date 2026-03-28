@@ -1,6 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { colors, typography, spacing, radius } from '../theme';
+import { AppIcon } from './AppIcon';
 
 /**
  * SeverityBadge — Critical / Serious / Stable chip
@@ -65,7 +66,9 @@ export function AllergyChip({ label, onRemove }) {
     <View style={styles.allergyChip}>
       <Text style={[typography.labelMd, { color: colors.error }]}>{label}</Text>
       {onRemove && (
-        <Text onPress={onRemove} style={[typography.labelMd, { color: colors.error, marginLeft: 6 }]}>✕</Text>
+        <TouchableOpacity onPress={onRemove} style={styles.removeIcon}>
+          <AppIcon name="close" size={14} color={colors.error} />
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -105,6 +108,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
     marginBottom: 8,
   },
+  removeIcon: { marginLeft: 6, padding: 2 },
   conditionChip: {
     borderRadius: radius.full,
     paddingHorizontal: 14,

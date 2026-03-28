@@ -9,6 +9,7 @@ import { AlertCard, MedCard } from '../components/Cards';
 import { SeverityBadge, SectionLabel } from '../components/Badges';
 import { PrimaryButton, ToggleGroup } from '../components/Buttons';
 import { LabeledInput } from '../components/Inputs';
+import { AppIcon } from '../components/AppIcon';
 import { getState, setState } from '../store';
 
 export default function RecordViewerScreen({ navigation, route }) {
@@ -47,8 +48,9 @@ export default function RecordViewerScreen({ navigation, route }) {
       <View style={styles.criticalSection}>
         {/* Header row */}
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={[typography.titleMd, { color: colors.primary }]}>← Back</Text>
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+            <AppIcon name="back" size={18} color={colors.primary} />
+            <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Back</Text>
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={[typography.titleMd, { color: colors.onSurface }]}>
@@ -63,22 +65,37 @@ export default function RecordViewerScreen({ navigation, route }) {
 
         {/* Allergy card — ALWAYS shown */}
         {hasAllergies ? (
-          <AlertCard icon="⚠" title="Allergies" variant="critical">
-            {patient.allergies.map((a, i) => (
-              <Text key={i} style={[typography.bodyMd, { color: colors.error }]}>
-                {a.allergen} → {a.reaction}
-              </Text>
-            ))}
+          <AlertCard iconName="warning" title="Allergies" variant="critical">
+            {patient.allergies.filter(a => a).map((a, i) => {
+              let allergen = '';
+              let reaction = '';
+              
+              if (typeof a === 'string') {
+                allergen = a;
+              } else if (typeof a === 'object' && a !== null) {
+                allergen = String(a.allergen || '');
+                reaction = String(a.reaction || '');
+              }
+              
+              return (
+                <Text key={i} style={[typography.bodyMd, { color: colors.error }]}>
+                  {allergen}{reaction ? `: ${reaction}` : ''}
+                </Text>
+              );
+            })}
           </AlertCard>
         ) : (
           <View style={styles.noAllergyBanner}>
-            <Text style={[typography.titleSm, { color: '#1a6640' }]}>✓ No known allergies</Text>
+            <View style={styles.safeRow}>
+              <AppIcon name="check" size={14} color="#1a6640" />
+              <Text style={[typography.titleSm, { color: '#1a6640', marginLeft: 6 }]}>No known allergies</Text>
+            </View>
           </View>
         )}
 
         {/* Must not stop — if any */}
         {mustNotStop.length > 0 && (
-          <AlertCard icon="🛑" title="Must NOT Stop" variant="mustStop">
+          <AlertCard iconName="warning" title="Must NOT Stop" variant="mustStop">
             {mustNotStop.map((m, i) => (
               <Text key={i} style={[typography.bodyMd, { color: colors.error, marginBottom: 2 }]}>
                 {m.name} {m.dose} · {m.route}
@@ -180,11 +197,15 @@ export default function RecordViewerScreen({ navigation, route }) {
       <View style={styles.stickyBottom}>
         {acknowledged ? (
           <View style={styles.acknowledgedBanner}>
-            <Text style={[typography.titleMd, { color: '#1a6640' }]}>✅ Transfer Acknowledged</Text>
+            <View style={styles.ackRow}>
+              <AppIcon name="check" size={16} color="#1a6640" />
+              <Text style={[typography.titleMd, { color: '#1a6640', marginLeft: 6 }]}>Transfer Acknowledged</Text>
+            </View>
           </View>
         ) : (
           <PrimaryButton
-            label="Mark as Reviewed ✓"
+            label="Mark as Reviewed"
+            iconName="check"
             onPress={() => setShowAckPanel(true)}
           />
         )}
@@ -258,10 +279,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: spacing[4],
   },
+  backBtn: { flexDirection: 'row', alignItems: 'center' },
   noAllergyBanner: {
     backgroundColor: '#d3f5e4',
     borderRadius: radius.md, padding: spacing[3], marginBottom: spacing[3],
   },
+  safeRow: { flexDirection: 'row', alignItems: 'center' },
   severityCard: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.md,
@@ -309,6 +332,7 @@ const styles = StyleSheet.create({
     alignItems: 'center', padding: spacing[4],
     backgroundColor: '#d3f5e4', borderRadius: radius.md,
   },
+  ackRow: { flexDirection: 'row', alignItems: 'center' },
   modalOverlay: {
     flex: 1, justifyContent: 'flex-end',
     backgroundColor: 'rgba(25,27,35,0.4)',

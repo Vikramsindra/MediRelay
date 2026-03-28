@@ -7,6 +7,7 @@ import { colors, typography, spacing, radius, shadow } from '../theme';
 import { AlertCard } from '../components/Cards';
 import { PrimaryButton, SecondaryButton } from '../components/Buttons';
 import { LabeledInput } from '../components/Inputs';
+import { AppIcon } from '../components/AppIcon';
 import { getState } from '../store';
 
 export default function DrugConflictScreen({ navigation, route }) {
@@ -27,7 +28,9 @@ export default function DrugConflictScreen({ navigation, route }) {
       <View style={styles.container}>
         {/* Warning header */}
         <View style={styles.warningHeader}>
-          <Text style={styles.warningEmoji}>⚠️</Text>
+          <View style={styles.warningIconWrap}>
+            <AppIcon name="warning" size={56} color={colors.error} strokeWidth={1.8} />
+          </View>
           <Text style={[typography.headlineMd, { color: colors.error, marginTop: spacing[3] }]}>
             Conflict Detected
           </Text>
@@ -37,7 +40,7 @@ export default function DrugConflictScreen({ navigation, route }) {
         </View>
 
         {/* Conflict card */}
-        <AlertCard icon="🚨" title="Drug-Allergy Conflict" variant="critical">
+        <AlertCard iconName="warning" title="Drug-Allergy Conflict" variant="critical">
           <View style={styles.conflictRow}>
             <Text style={[typography.labelSm, { color: colors.outline }]}>ALLERGY</Text>
             <Text style={[typography.titleMd, { color: colors.error }]}>
@@ -76,7 +79,8 @@ export default function DrugConflictScreen({ navigation, route }) {
 
         <View style={styles.actions}>
           <PrimaryButton
-            label="Fix Medication ←"
+            label="Fix Medication"
+            iconName="back"
             onPress={() => navigation.navigate('TransferForm', {
               patientId: transfer?.patientId,
               _goToMeds: true,
@@ -90,7 +94,8 @@ export default function DrugConflictScreen({ navigation, route }) {
             />
           ) : (
             <SecondaryButton
-              label={overrideNote ? 'Confirm Override & Continue →' : 'Enter a reason first'}
+              label={overrideNote ? 'Confirm Override & Continue' : 'Enter a reason first'}
+              iconName={overrideNote ? 'chevron-right' : undefined}
               onPress={() => {
                 if (!overrideNote) return;
                 navigation.navigate('QRDisplay', { transferId });
@@ -108,7 +113,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing[6], justifyContent: 'center' },
   warningHeader: { alignItems: 'center', marginBottom: spacing[6] },
-  warningEmoji: { fontSize: 56 },
+  warningIconWrap: { marginBottom: spacing[1] },
   conflictRow: { marginBottom: spacing[1] },
   overrideWrap: { marginBottom: spacing[4] },
   actions: { marginTop: spacing[4] },

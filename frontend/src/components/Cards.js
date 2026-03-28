@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { colors, typography, spacing, radius, shadow } from '../theme';
+import { AppIcon } from './AppIcon';
 
 /**
  * Card — base surface card (Level 2: surface_container_lowest on surface_container bg)
@@ -16,7 +17,7 @@ export function Card({ children, style, elevated }) {
 /**
  * AlertCard — critical / allergy / must-not-stop cards (always at top)
  */
-export function AlertCard({ icon, title, children, variant = 'critical' }) {
+export function AlertCard({ icon, iconName, title, children, variant = 'critical' }) {
   const variantStyles = {
     critical:  { bg: colors.criticalBg,  border: colors.critical,  text: colors.critical },
     serious:   { bg: colors.seriousBg,   border: colors.serious,   text: colors.serious },
@@ -27,6 +28,7 @@ export function AlertCard({ icon, title, children, variant = 'critical' }) {
   return (
     <View style={[styles.alertCard, { backgroundColor: v.bg, borderLeftColor: v.border }]}>
       <View style={styles.alertHeader}>
+        {iconName ? <AppIcon name={iconName} size={18} color={v.text} /> : null}
         {icon && <Text style={styles.alertIcon}>{icon}</Text>}
         <Text style={[typography.titleMd, { color: v.text }]}>{title}</Text>
       </View>
@@ -97,13 +99,22 @@ export function PatientCard({ name, age, sex, bloodGroup, allergies, onPress }) 
         </View>
         {hasAllergies ? (
           <View style={styles.allergyRow}>
-            <Text style={styles.allergyDot}>⚠ </Text>
+            <View style={styles.allergyIconWrap}>
+              <AppIcon name="warning" size={13} color={colors.error} />
+            </View>
             <Text style={[typography.labelMd, { color: colors.error, flex: 1 }]}>
-              {allergies.map((a) => a.allergen).join(', ')}
+              {allergies.filter(a => a).map((a) => {
+                if (typeof a === 'string') return a;
+                if (typeof a === 'object' && a && a.allergen) return a.allergen;
+                return '';
+              }).filter(a => a).join(', ')}
             </Text>
           </View>
         ) : (
-          <Text style={[typography.labelMd, { color: '#1a6640', marginTop: 6 }]}>✓ No known allergies</Text>
+          <View style={styles.safeRow}>
+            <AppIcon name="check" size={14} color="#1a6640" />
+            <Text style={[typography.labelMd, { color: '#1a6640', marginLeft: 6 }]}>No known allergies</Text>
+          </View>
         )}
       </Card>
     </View>
@@ -113,16 +124,19 @@ export function PatientCard({ name, age, sex, bloodGroup, allergies, onPress }) 
 /**
  * MedCard — medication display card (transfer form / record viewer)
  */
-export function MedCard({ name, dose, route, frequency, mustNotStop, lastGiven }) {
+export function MedCard({ name, dose, route, frequency, mustNotStop, lastGiven, showMustNotStopBadge = true }) {
   return (
     <Card style={[styles.medCard, mustNotStop && styles.medCardAlert]}>
       <View style={styles.medHeader}>
         <Text style={[typography.titleSm, { color: colors.onSurface, flex: 1 }]}>
           {name} · {dose} · {route}
         </Text>
-        {mustNotStop && (
+        {mustNotStop && showMustNotStopBadge && (
           <View style={styles.mustNotStopBadge}>
-            <Text style={[typography.labelMd, { color: colors.error }]}>⚠ MUST NOT STOP</Text>
+            <View style={styles.mustNotStopRow}>
+              <AppIcon name="warning" size={13} color={colors.error} />
+              <Text style={[typography.labelMd, { color: colors.error, marginLeft: 4 }]}>MUST NOT STOP</Text>
+            </View>
           </View>
         )}
       </View>
@@ -172,7 +186,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   allergyRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
-  allergyDot: { color: colors.error, fontSize: 13 },
+  allergyIconWrap: { marginRight: 4 },
+  safeRow: { flexDirection: 'row', alignItems: 'center', marginTop: 6 },
   medCard: { marginBottom: spacing[3] },
   medCardAlert: { borderWidth: 2, borderColor: colors.error },
   medHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing[2] },
@@ -182,4 +197,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 2,
   },
+  mustNotStopRow: { flexDirection: 'row', alignItems: 'center' },
 });

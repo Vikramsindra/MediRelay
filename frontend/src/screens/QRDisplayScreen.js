@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { SeverityBadge } from '../components/Badges';
 import { SecondaryButton } from '../components/Buttons';
+import { AppIcon } from '../components/AppIcon';
 import { getState } from '../store';
 
 // Minimal QR placeholder (real QR would use react-native-qrcode-svg)
@@ -78,20 +79,15 @@ export default function QRDisplayScreen({ navigation, route }) {
     Acknowledged: '#1a6640',
   }[status];
 
-  const statusIcon = {
-    Pending: '🕐',
-    Viewed: '👁',
-    Acknowledged: '✅',
-  }[status];
-
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.headerBar}>
-          <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-            <Text style={[typography.titleMd, { color: colors.primary }]}>← Home</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Home')} style={styles.homeRow}>
+            <AppIcon name="back" size={18} color={colors.primary} />
+            <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Home</Text>
           </TouchableOpacity>
           <Text style={[typography.titleMd, { color: colors.onSurface }]}>Transfer Created</Text>
           <View style={{ width: 60 }} />
@@ -121,27 +117,30 @@ export default function QRDisplayScreen({ navigation, route }) {
         {/* Short link */}
         <TouchableOpacity onPress={handleCopyLink} style={styles.linkRow} activeOpacity={0.75}>
           <Text style={[typography.bodyMd, { color: colors.primary, flex: 1 }]}>
-            🔗 {shortLink}
+            {shortLink}
           </Text>
-          <Text style={[typography.labelMd, { color: linkCopied ? '#1a6640' : colors.outline }]}>
-            {linkCopied ? 'Copied ✓' : 'Tap to copy'}
-          </Text>
+          <View style={styles.copyStateRow}>
+            {linkCopied ? <AppIcon name="check" size={14} color="#1a6640" /> : null}
+            <Text style={[typography.labelMd, { color: linkCopied ? '#1a6640' : colors.outline, marginLeft: linkCopied ? spacing[1] : 0 }]}> 
+              {linkCopied ? 'Copied' : 'Tap to copy'}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         {/* Actions */}
         <View style={styles.actionsRow}>
-          <SecondaryButton label="📤 Share" onPress={handleShare} />
-          <SecondaryButton label="🖨 Print" onPress={() => {}} />
+          <SecondaryButton label="Share" onPress={handleShare} iconName="chevron-right" />
+          <SecondaryButton label="Print" onPress={() => {}} iconName="chevron-right" />
         </View>
 
         {/* Live status */}
         <View style={[styles.statusBanner, { borderColor: statusColor }]}>
-          <Text style={styles.statusIcon}>{statusIcon}</Text>
+          <AppIcon name={status === 'Acknowledged' ? 'check' : 'warning'} size={20} color={statusColor} />
           <View style={{ flex: 1 }}>
             <Text style={[typography.titleSm, { color: statusColor }]}>
               {status === 'Pending' && 'Pending review…'}
               {status === 'Viewed' && 'Record opened'}
-              {status === 'Acknowledged' && 'Transfer Acknowledged ✓'}
+              {status === 'Acknowledged' && 'Transfer acknowledged'}
             </Text>
             {status !== 'Acknowledged' && (
               <Text style={[typography.bodySm, { color: colors.outline, marginTop: 2 }]}>
@@ -176,6 +175,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     marginBottom: spacing[5],
   },
+  homeRow: { flexDirection: 'row', alignItems: 'center' },
   patientBanner: { alignItems: 'center', marginBottom: spacing[5] },
   badgeRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[1] },
   qrCard: {
@@ -205,6 +205,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.md, padding: spacing[4],
     marginBottom: spacing[4],
   },
+  copyStateRow: { flexDirection: 'row', alignItems: 'center' },
   actionsRow: {
     flexDirection: 'row', gap: spacing[3], marginBottom: spacing[5],
   },
@@ -214,7 +215,6 @@ const styles = StyleSheet.create({
     padding: spacing[4],
     backgroundColor: colors.surfaceContainerLowest,
   },
-  statusIcon: { fontSize: 24 },
   homeBtn: {
     alignItems: 'center', padding: spacing[4],
     backgroundColor: colors.surfaceContainerLow,

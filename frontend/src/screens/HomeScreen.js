@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { TransferCard } from '../components/Cards';
 import { SectionLabel } from '../components/Badges';
+import { AppIcon } from '../components/AppIcon';
 import { useStore } from '../store';
 
 function formatTimeAgo(isoString) {
@@ -71,14 +72,14 @@ export default function HomeScreen({ navigation }) {
           style={[styles.newTransferBtn, shadow.md]}
           activeOpacity={0.88}
         >
-          <Text style={styles.newTransferIcon}>➕</Text>
+          <AppIcon name="plus" size={22} color={colors.onPrimary} />
           <View style={{ flex: 1 }}>
             <Text style={[typography.headlineSm, { color: colors.onPrimary }]}>New Transfer</Text>
             <Text style={[typography.bodySm, { color: 'rgba(255,255,255,0.75)', marginTop: 2 }]}>
               Send a patient record
             </Text>
           </View>
-          <Text style={{ color: 'rgba(255,255,255,0.6)', fontSize: 20 }}>›</Text>
+          <AppIcon name="chevron-right" size={20} color="rgba(255,255,255,0.6)" />
         </TouchableOpacity>
 
         {/* Secondary quick actions */}
@@ -88,7 +89,7 @@ export default function HomeScreen({ navigation }) {
             style={[styles.quickBtn, shadow.sm]}
             activeOpacity={0.8}
           >
-            <Text style={styles.quickIcon}>📷</Text>
+            <AppIcon name="camera" size={22} color={colors.primary} />
             <Text style={[typography.titleSm, { color: colors.onSurface }]}>Scan QR</Text>
             <Text style={[typography.bodySm, { color: colors.outline }]}>Receive transfer</Text>
           </TouchableOpacity>
@@ -97,7 +98,7 @@ export default function HomeScreen({ navigation }) {
             style={[styles.quickBtn, shadow.sm]}
             activeOpacity={0.8}
           >
-            <Text style={styles.quickIcon}>🔗</Text>
+            <AppIcon name="link" size={22} color={colors.primary} />
             <Text style={[typography.titleSm, { color: colors.onSurface }]}>Paste Link</Text>
             <Text style={[typography.bodySm, { color: colors.outline }]}>From WhatsApp / SMS</Text>
           </TouchableOpacity>
@@ -143,7 +144,7 @@ export default function HomeScreen({ navigation }) {
         {/* Empty state — no sent transfers */}
         {recentSent.length === 0 && incoming.length === 0 && (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
+            <AppIcon name="clipboard" size={40} color={colors.outline} />
             <Text style={[typography.titleMd, { color: colors.onSurfaceVariant, marginTop: spacing[3] }]}>
               Start your first transfer
             </Text>
@@ -183,7 +184,6 @@ const styles = StyleSheet.create({
     gap: spacing[4],
     marginBottom: spacing[4],
   },
-  newTransferIcon: { fontSize: 28 },
   quickRow: {
     flexDirection: 'row',
     gap: spacing[3],
@@ -197,11 +197,9 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing[1],
   },
-  quickIcon: { fontSize: 24, marginBottom: spacing[1] },
   section: { marginBottom: spacing[4] },
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing[12],
   },
-  emptyIcon: { fontSize: 48 },
 });

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { PatientCard } from '../components/Cards';
 import { PrimaryButton } from '../components/Buttons';
+import { AppIcon } from '../components/AppIcon';
 import { useStore } from '../store';
 
 export default function PatientListScreen({ navigation, route }) {
@@ -35,7 +36,10 @@ export default function PatientListScreen({ navigation, route }) {
     <SafeAreaView style={styles.safe}>
       <View style={styles.headerBar}>
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
-          <Text style={[typography.titleMd, { color: colors.primary }]}>← Back</Text>
+          <View style={styles.backRow}>
+            <AppIcon name="back" size={18} color={colors.primary} />
+            <Text style={[typography.titleMd, { color: colors.primary, marginLeft: spacing[1.5] }]}>Back</Text>
+          </View>
         </TouchableOpacity>
         <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Patients</Text>
         <View style={{ width: 60 }} />
@@ -53,7 +57,7 @@ export default function PatientListScreen({ navigation, route }) {
         />
         {query.length > 0 && (
           <TouchableOpacity onPress={() => setQuery('')} style={styles.clearBtn}>
-            <Text style={{ color: colors.outline, fontSize: 16 }}>✕</Text>
+            <AppIcon name="close" size={16} color={colors.outline} />
           </TouchableOpacity>
         )}
       </View>
@@ -105,7 +109,8 @@ const styles = StyleSheet.create({
     paddingBottom: spacing[3],
     backgroundColor: colors.background,
   },
-  backBtn: { width: 60 },
+  backBtn: { width: 72 },
+  backRow: { flexDirection: 'row', alignItems: 'center' },
   searchWrap: {
     marginHorizontal: spacing[5],
     marginBottom: spacing[4],

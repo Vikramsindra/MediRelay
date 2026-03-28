@@ -6,6 +6,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import AuthScreen from '../screens/AuthScreen';
 import HomeScreen from '../screens/HomeScreen';
 import PatientListScreen from '../screens/PatientListScreen';
+import PatientProfileScreen from '../screens/PatientProfileScreen';
 import HistoryScreen from '../screens/HistoryScreen';
 import PatientRegistrationScreen from '../screens/PatientRegistrationScreen';
 import TransferFormScreen from '../screens/TransferFormScreen';
@@ -47,6 +48,7 @@ export default function AppNavigator() {
           <>
             <Stack.Screen name="Main" component={MainTabs} />
             <Stack.Screen name="PatientList" component={PatientListScreen} />
+            <Stack.Screen name="PatientProfile" component={PatientProfileScreen} />
             <Stack.Screen name="PatientRegistration" component={PatientRegistrationScreen} />
             <Stack.Screen name="TransferForm" component={TransferFormScreen} />
             <Stack.Screen
