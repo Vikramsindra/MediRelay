@@ -1,0 +1,84 @@
+const axios = require("axios");
+
+const ABDM_BASE = process.env.ABDM_BASE_URL || "https://healthidsbx.abdm.gov.in";
+const ABDM_CLIENT_ID = process.env.ABDM_CLIENT_ID;
+const ABDM_CLIENT_SECRET = process.env.ABDM_CLIENT_SECRET;
+
+let _token = null;
+let _expiry = null;
+
+// 🔐 Get ABDM Access Token
+const getABDMAccessToken = async () => {
+  if (_token && _expiry && Date.now() < _expiry) {
+    return _token;
+  }
+
+  const res = await axios.post(
+    "https://dev.abdm.gov.in/gateway/v0.5/sessions",
+    {
+      clientId: ABDM_CLIENT_ID,
+      clientSecret: ABDM_CLIENT_SECRET,
+    }
+  );
+
+  _token = res.data.accessToken;
+  _expiry = Date.now() + (res.data.expiresIn - 60) * 1000;
+
+  return _token;
+};
+
+// 📦 Headers
+const abdmHeaders = async () => {
+  const token = await getABDMAccessToken();
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+  };
+};
+
+// 📱 Step 1: Send OTP
+const generateMobileOTP = async (mobile) => {
+  const headers = await abdmHeaders();
+
+  const res = await axios.post(
+    `${ABDM_BASE}/api/v2/registration/mobile/login/generateOtp`,
+    { mobile },
+    { headers }
+  );
+
+  return res.data;
+};
+
+// 📱 Step 2: Verify OTP
+const verifyMobileOTP = async (txnId, otp) => {
+  const headers = await abdmHeaders();
+
+  const res = await axios.post(
+    `${ABDM_BASE}/api/v2/registration/mobile/login/verifyOtp`,
+    { txnId, otp },
+    { headers }
+  );
+
+  return res.data;
+};
+
+// 👤 Step 3: Get Profile
+const getABHAProfile = async (userToken) => {
+  const res = await axios.get(
+    `${ABDM_BASE}/api/v1/account/profile`,
+    {
+      headers: {
+        "Content-Type": "application/json",
+        "X-Token": `Bearer ${userToken}`,
+      },
+    }
+  );
+
+  return res.data;
+};
+
+module.exports = {
+  generateMobileOTP,
+  verifyMobileOTP,
+  getABHAProfile,
+};

@@ -1,96 +1,127 @@
 const express = require("express");
-const router = express.Router();
+const router  = express.Router();
 
-const Patient = require("../models/PatientModel.js");
+// No ABHA imports here — those live in authRoutes.js
+const Patient = require("../models/PatientModel");
+const { protect, restrictTo } = require("../middleware/authMiddleware");
 
-// 🔍 GET /patients?search=ram → Search patients
-// 🔍 GET /patients?search=ram → Search patients
-router.get("/search", async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/patients/search?search=ram
+// Doctors only — search across name, phone, blood group, emergency contact
+// ─────────────────────────────────────────────────────────
+router.get("/search", protect, restrictTo("doctor"), async (req, res) => {
     try {
         const { search } = req.query;
 
-        // ❌ Block if search not provided
         if (!search || search.trim() === "") {
-            return res.status(400).json({
-                success: false,
-                message: "Search query is required"
-            });
+            return res.status(400).json({ success: false, message: "Search query is required" });
         }
 
-        // ✅ Search across multiple fields
         const patients = await Patient.find({
             $or: [
-                { fullName: { $regex: `^${search}$`, $options: "i" } }, // exact match
-                { phone: { $regex: `^${search}$`, $options: "i" } },
-                { bloodGroup: { $regex: `^${search}$`, $options: "i" } },
-                { "emergencyContact.name": { $regex: `^${search}$`, $options: "i" } },
-                { "emergencyContact.phone": { $regex: `^${search}$`, $options: "i" } }
-            ]
+                { fullName:   { $regex: search.trim(), $options: "i" } },
+                { phone:      { $regex: `^${search.trim()}`, $options: "i" } },
+                { abhaId:     { $regex: search.trim(), $options: "i" } },
+                { bloodGroup: { $regex: `^${search.trim()}$`, $options: "i" } },
+                { "emergencyContact.name":  { $regex: search.trim(), $options: "i" } },
+                { "emergencyContact.phone": { $regex: `^${search.trim()}`, $options: "i" } },
+            ],
         }).limit(20);
 
-        // ✅ No patients found
-        if (patients.length === 0) {
-            return res.status(200).json({
-                success: true,
-                data: [],
-                message: "No patients found"
-            });
-        }
-
         res.status(200).json({
             success: true,
-            data: patients
+            count:   patients.length,
+            data:    patients,
+            message: patients.length === 0 ? "No patients found" : undefined,
         });
 
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// ➕ POST /patients → Register patient
-router.post("/", async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/patients/me
+// Patient sees their own clinical profile
+// ─────────────────────────────────────────────────────────
+router.get("/me", protect, restrictTo("patient"), async (req, res) => {
     try {
-        const patient = await Patient.create(req.body);
-
-        res.status(201).json({
-            success: true,
-            data: patient
-        });
-
+        const patient = await Patient.findOne({ userId: req.user._id });
+        if (!patient) {
+            return res.status(404).json({ success: false, message: "Patient profile not found" });
+        }
+        res.status(200).json({ success: true, data: patient });
     } catch (error) {
-        res.status(400).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
+// ─────────────────────────────────────────────────────────
+// POST /api/v1/patients
+// Doctors create a patient record manually
+// ─────────────────────────────────────────────────────────
+router.post("/", protect, restrictTo("doctor"), async (req, res) => {
+    try {
+        // If abhaId is provided, prevent duplicates
+        if (req.body.abhaId) {
+            const existing = await Patient.findOne({ abhaId: req.body.abhaId });
+            if (existing) {
+                return res.status(409).json({
+                    success: false,
+                    message: "A patient with this ABHA ID already exists",
+                    data:    existing, // return existing so frontend can use it
+                });
+            }
+        }
 
-// 📄 GET /patients/:id → Get single patient
-router.get("/:id", async (req, res) => {
+        const patient = await Patient.create(req.body);
+        res.status(201).json({ success: true, data: patient });
+
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/patients/:id
+// ─────────────────────────────────────────────────────────
+router.get("/:id", protect, async (req, res) => {
     try {
         const patient = await Patient.findById(req.params.id);
-
         if (!patient) {
-            return res.status(404).json({
-                success: false,
-                message: "Patient not found"
-            });
+            return res.status(404).json({ success: false, message: "Patient not found" });
         }
 
-        res.status(200).json({
-            success: true,
-            data: patient
-        });
+        // Patients can only view their own record
+        if (
+            req.user.role === "patient" &&
+            patient.userId?.toString() !== req.user._id.toString()
+        ) {
+            return res.status(403).json({ success: false, message: "Access denied" });
+        }
 
+        res.status(200).json({ success: true, data: patient });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// PATCH /api/v1/patients/:id
+// ─────────────────────────────────────────────────────────
+router.patch("/:id", protect, restrictTo("doctor"), async (req, res) => {
+    try {
+        const patient = await Patient.findByIdAndUpdate(
+            req.params.id,
+            req.body,
+            { new: true, runValidators: true }
+        );
+        if (!patient) {
+            return res.status(404).json({ success: false, message: "Patient not found" });
+        }
+        res.status(200).json({ success: true, data: patient });
+    } catch (error) {
+        res.status(400).json({ success: false, message: error.message });
     }
 });
 

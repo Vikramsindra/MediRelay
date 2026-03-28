@@ -1,183 +1,344 @@
-const express = require("express");
-const router = express.Router();
+const express  = require("express");
+const router   = express.Router();
 
-const Transfer = require("../models/trasferRecord.js");
-const Patient = require("../models/PatientModel.js");
+const Transfer = require("../models/TransferRecord");   // fixed filename (was trasferRecord)
+const Patient  = require("../models/PatientModel");
+const { protect, restrictTo, optionalAuth } = require("../middleware/authMiddleware");
+const { generateQRCode, getShareUrl } = require("../utils/generateQR");
 
-// ==============================
-// 🆕 Create Transfer (Full Data, No Draft)
-// ==============================
-router.post("/", async (req, res) => {
+// ─────────────────────────────────────────────────────────────────
+// IMPORTANT: /share/:shareId MUST be defined BEFORE /:id
+// Otherwise Express matches "share" as a MongoDB ObjectId → CastError crash
+// ─────────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/transfers/share/:shareId   (PUBLIC — no auth required)
+// QR code scans hit this endpoint. Works without login.
+// ─────────────────────────────────────────────────────────
+router.get("/share/:shareId", optionalAuth, async (req, res) => {
+    try {
+        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer not found" });
+        }
+
+        // Return a structured response with critical info at the top.
+        // Frontend should render the `critical` block FIRST (no scrolling needed).
+        const response = {
+            _id:      transfer._id,
+            shareId:  transfer.shareId,
+            status:   transfer.status,
+            createdAt: transfer.createdAt,
+
+            // 🚨 Critical block — show this first, above the fold
+            critical: {
+                allergies:           transfer.allergies,
+                criticalMedications: transfer.criticalMedications,
+                severity:            transfer.severity,
+                chiefComplaint:      transfer.chiefComplaint,
+                reasonForTransfer:   transfer.reasonForTransfer,
+            },
+
+            patient: {
+                fullName:    transfer.patient.fullName,
+                abhaId:      transfer.patient.abhaId,
+                dateOfBirth: transfer.patient.dateOfBirth,
+                gender:      transfer.patient.gender,
+                bloodGroup:  transfer.patient.bloodGroup,
+                phone:       transfer.patient.phone,
+            },
+
+            clinical: {
+                diagnosis:             transfer.diagnosis,
+                conditionCategory:     transfer.conditionCategory,
+                clinicalSummary:       transfer.clinicalSummary,
+                vitals:                transfer.vitals,
+                activeMedications:     transfer.activeMedications,
+                pendingInvestigations: transfer.pendingInvestigations,
+                modeOfTransfer:        transfer.modeOfTransfer,
+            },
+
+            hospitals: {
+                sending:   transfer.sendingHospital,
+                receiving: transfer.receivingHospital,
+                doctor:    transfer.doctorName,
+            },
+
+            acknowledgement: transfer.acknowledgement,
+        };
+
+        res.status(200).json({ success: true, data: response });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/transfers/timeline/:abhaId
+// Full chronological journey of a patient across hospitals
+// ─────────────────────────────────────────────────────────
+router.get("/timeline/:abhaId", protect, async (req, res) => {
+    try {
+        const transfers = await Transfer.find({ "patient.abhaId": req.params.abhaId })
+            .sort({ createdAt: 1 })
+            .select("createdAt sendingHospital receivingHospital status severity chiefComplaint doctorName acknowledgement shareId");
+
+        if (transfers.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: "No transfer history found for this ABHA ID",
+            });
+        }
+
+        const timeline = transfers.map(t => ({
+            transferId:      t._id,
+            shareId:         t.shareId,
+            date:            t.createdAt,
+            from:            t.sendingHospital,
+            to:              t.receivingHospital,
+            status:          t.status,
+            severity:        t.severity,
+            chiefComplaint:  t.chiefComplaint,
+            doctor:          t.doctorName,
+            arrivedAs:       t.acknowledgement?.arrivalCondition,
+        }));
+
+        res.json({ success: true, abhaId: req.params.abhaId, timeline });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/transfers
+// Doctors → all transfers (filter by patientId or abhaId)
+// Patients → automatically filtered to their own
+// ─────────────────────────────────────────────────────────
+router.get("/", protect, async (req, res) => {
+    try {
+        const { patientId, abhaId, status } = req.query;
+        let query = {};
+
+        if (req.user.role === "patient") {
+            // Patient can only see their own history
+            const patient = await Patient.findOne({ userId: req.user._id });
+            if (patient?.abhaId) {
+                query["patient.abhaId"] = patient.abhaId;
+            } else if (patient?._id) {
+                query["patient._id"] = patient._id;
+            }
+        } else {
+            // Doctor can filter explicitly
+            if (abhaId)    query["patient.abhaId"] = abhaId;
+            if (patientId) query["patient._id"]    = patientId;
+        }
+
+        if (status) query.status = status;
+
+        const transfers = await Transfer.find(query).sort({ createdAt: -1 });
+        res.status(200).json({ success: true, count: transfers.length, data: transfers });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// POST /api/v1/transfers
+// Doctor creates a new transfer record
+// ─────────────────────────────────────────────────────────
+router.post("/", protect, restrictTo("doctor"), async (req, res) => {
     try {
         const {
             patientId,
             sendingHospital,
             receivingHospital,
-            doctorName,
             chiefComplaint,
             conditionCategory,
             severity,
             reasonForTransfer,
+            diagnosis,
             vitals,
             activeMedications,
             clinicalSummary,
             pendingInvestigations,
-            modeOfTransfer
+            modeOfTransfer,
         } = req.body;
 
-        // Fetch patient data from DB
         const patient = await Patient.findById(patientId);
         if (!patient) {
-            return res.status(404).json({
-                success: false,
-                message: "Patient not found"
-            });
+            return res.status(404).json({ success: false, message: "Patient not found" });
         }
 
-        // Generate a unique shareId for this transfer
-        const shareId = `${patient._id.toString()}-${Date.now().toString(36)}`;
+        const meds = activeMedications || [];
 
-        // Create transfer record
+        // Extract must-not-stop medication names for the critical block
+        const criticalMedications = meds
+            .filter(m => m.isCritical)
+            .map(m => m.name);
+
+        const shareId = `${patient._id.toString().slice(-6)}-${Date.now().toString(36)}`;
+
         const transfer = await Transfer.create({
-            patient,
+            patient: {
+                _id:          patient._id,
+                fullName:     patient.fullName,
+                abhaId:       patient.abhaId,
+                abhaAddress:  patient.abhaAddress,
+                dateOfBirth:  patient.dateOfBirth,
+                gender:       patient.gender,
+                bloodGroup:   patient.bloodGroup,
+                phone:        patient.phone,
+                knownAllergies: patient.knownAllergies,
+            },
             sendingHospital,
+            sendingDoctorId:  req.user._id,
+            doctorName:       req.user.name,    // works now because protect() does DB lookup
             receivingHospital,
-            doctorName,
             chiefComplaint,
             conditionCategory,
             severity,
             reasonForTransfer,
-            vitals: vitals || {},
-            activeMedications: activeMedications || [],
+            diagnosis,
+            vitals:              vitals || {},
+            activeMedications:   meds,
+            criticalMedications,
+            allergies:           patient.knownAllergies || [],
             clinicalSummary,
             pendingInvestigations: pendingInvestigations || [],
             modeOfTransfer,
             shareId,
-            status: "submitted" // directly submitted
+            status: "submitted",
         });
+
+        // Generate QR code
+        // This line in your POST route now correctly gets the Base64 image
+const qrCodeUrl = await generateQRCode(shareId); 
+
+// This line gets the text version of the link (useful for 'Copy Link' buttons)
+const shareUrl = getShareUrl(shareId);
+        if (qrCodeUrl) {
+            transfer.qrCodeUrl = qrCodeUrl;
+            await transfer.save();
+        }
 
         res.status(201).json({
             success: true,
             data: transfer,
-            link: `http://localhost:8080/transfers/share/${shareId}`
+            shareUrl,
+            qrCodeUrl,
         });
-
     } catch (error) {
         console.error(error);
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// ==============================
-// 📄 Get Single Transfer by ID
-// ==============================
-router.get("/:id", async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/transfers/:id
+// ─────────────────────────────────────────────────────────
+router.get("/:id", protect, async (req, res) => {
     try {
         const transfer = await Transfer.findById(req.params.id);
         if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
+            return res.status(404).json({ success: false, message: "Transfer not found" });
         }
 
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
+        // Patients can only view transfers linked to them
+        if (req.user.role === "patient") {
+            const patient = await Patient.findOne({ userId: req.user._id });
+            const isOwner =
+                transfer.patient._id.toString() === patient?._id.toString() ||
+                (transfer.patient.abhaId && transfer.patient.abhaId === patient?.abhaId);
 
+            if (!isOwner) {
+                return res.status(403).json({ success: false, message: "Access denied" });
+            }
+        }
+
+        res.status(200).json({ success: true, data: transfer });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// ==============================
-// 🔗 Get Transfer by Share ID (QR / Link)
-// ==============================
-router.get("/share/:shareId", async (req, res) => {
+// routes/transferRoutes.js
+
+// This is the endpoint the QR code URL points to
+router.get("/scan/:shareId", async (req, res) => { // Added async
     try {
-        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
+        // Changed TransferRecord to Transfer to match your import at the top
+        const transfer = await Transfer.findOne({ shareId: req.params.shareId }); 
+        
         if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
+            return res.status(404).json({ success: false, message: "Transfer record not found" });
         }
 
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
-
+        res.json({ success: true, data: transfer });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: "Server error during scan" });
     }
 });
 
-// ==============================
-// 🔄 Update Transfer
-// ==============================
-router.patch("/:id", async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// PATCH /api/v1/transfers/:id
+// Update transfer (only before acknowledgement)
+// ─────────────────────────────────────────────────────────
+router.patch("/:id", protect, restrictTo("doctor"), async (req, res) => {
     try {
-        const transfer = await Transfer.findByIdAndUpdate(
+        const transfer = await Transfer.findById(req.params.id);
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer not found" });
+        }
+
+        if (transfer.status !== "submitted") {
+            return res.status(400).json({
+                success: false,
+                message: "Cannot edit a transfer that has already been acknowledged",
+            });
+        }
+
+        const updated = await Transfer.findByIdAndUpdate(
             req.params.id,
             req.body,
             { new: true }
         );
 
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
-
+        res.status(200).json({ success: true, data: updated });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 
-// ==============================
-// 📜 Get Transfer History (All or by Patient)
-// ==============================
-router.get("/", async (req, res) => {
+// ─────────────────────────────────────────────────────────
+// PATCH /api/v1/transfers/:id/acknowledge
+// Receiving doctor marks transfer as reviewed
+// ─────────────────────────────────────────────────────────
+router.patch("/:id/acknowledge", protect, restrictTo("doctor"), async (req, res) => {
     try {
-        const { patientId } = req.query;
+        const { arrivalCondition, arrivalNotes, discrepancies } = req.body;
 
-        let query = {};
-        if (patientId) {
-            query = { "patient._id": patientId };
+        const transfer = await Transfer.findById(req.params.id);
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer not found" });
         }
 
-        const transfers = await Transfer.find(query).sort({ createdAt: -1 });
+        if (transfer.status === "acknowledged") {
+            return res.status(400).json({ success: false, message: "Transfer already acknowledged" });
+        }
 
-        res.status(200).json({
-            success: true,
-            data: transfers
-        });
+        transfer.acknowledgement = {
+            acknowledgedBy:   req.user.name,
+            acknowledgedAt:   new Date(),
+            arrivalCondition,
+            arrivalNotes,
+            discrepancies,
+        };
+        transfer.status = "acknowledged";
+        await transfer.save();
 
+        res.status(200).json({ success: true, data: transfer });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 });
 

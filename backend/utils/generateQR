@@ -1,0 +1,32 @@
+const QRCode = require('qrcode');
+
+/**
+ * Helper to construct the full public URL for a transfer.
+ * Replace 'localhost:8080' with your actual domain when deploying.
+ */
+const getShareUrl = (shareId) => {
+    const baseUrl = process.env.BASE_URL || 'http://localhost:8080';
+    return `${baseUrl}/api/v1/transfers/share/${shareId}`;
+};
+
+/**
+ * Generates a Base64 Image string of a QR code 
+ * that points to the specific share link.
+ */
+const generateQRCode = async (shareId) => {
+    try {
+        const url = getShareUrl(shareId);
+        // This generates the actual scannable image
+        const qrImageBase64 = await QRCode.toDataURL(url); 
+        return qrImageBase64;
+    } catch (err) {
+        console.error('QR Generation Error:', err);
+        return null;
+    }
+};
+
+// Export both so you can use them in your routes
+module.exports = {
+    generateQRCode,
+    getShareUrl
+};
