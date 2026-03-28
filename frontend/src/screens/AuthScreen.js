@@ -1,66 +1,78 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ScrollView,
+  KeyboardAvoidingView, Platform, ScrollView, TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, typography, spacing, radius } from '../theme';
-import { LabeledInput, OTPBoxes } from '../components/Inputs';
-import { PrimaryButton } from '../components/Buttons';
-import { AppIcon } from '../components/AppIcon';
-import { setState } from '../store';
+import { colors, typography, spacing, radius, shadow } from '../theme';
+import { setState, getState } from '../store';
 
-const STEPS = { PHONE: 'PHONE', OTP: 'OTP', PROFILE: 'PROFILE' };
+const MODES = { LOGIN: 'LOGIN', SIGNUP: 'SIGNUP' };
 
 export default function AuthScreen({ onAuth }) {
-  const [step, setStep] = useState(STEPS.PHONE);
-  const [phone, setPhone] = useState('');
-  const [otp, setOtp] = useState('');
-  const [name, setName] = useState('');
-  const [role, setRole] = useState('Doctor');
-  const [hospital, setHospital] = useState('');
-  const [resendTimer, setResendTimer] = useState(0);
+  const [mode, setMode] = useState(MODES.LOGIN);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [messageType, setMessageType] = useState('error');
   const [loading, setLoading] = useState(false);
 
-  // Countdown timer for resend OTP
-  useEffect(() => {
-    if (resendTimer <= 0) return;
-    const t = setTimeout(() => setResendTimer((s) => s - 1), 1000);
-    return () => clearTimeout(t);
-  }, [resendTimer]);
-
-  // Auto-submit when OTP is fully entered
-  useEffect(() => {
-    if (otp.length === 6) handleVerifyOtp();
-  }, [otp]);
-
-  const handleSendOtp = () => {
-    if (phone.length < 10) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setStep(STEPS.OTP);
-      setResendTimer(30);
-    }, 800);
+  const showError = (text) => {
+    setMessage(text);
+    setMessageType('error');
   };
 
-  const handleVerifyOtp = () => {
-    if (otp.length < 6) return;
-    setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      // First login -> ask profile
-      setStep(STEPS.PROFILE);
-    }, 600);
+  const showSuccess = (text) => {
+    setMessage(text);
+    setMessageType('success');
   };
 
-  const handleSaveProfile = () => {
-    if (!name || !hospital) return;
-    setState((s) => ({
-      ...s,
-      doctor: { name, hospital, phone, role, isLoggedIn: true },
-    }));
-    onAuth?.();
+  const handleSignup = () => {
+    setMessage('');
+    const normalizedEmail = email.trim().toLowerCase();
+
+    setLoading(true);
+    setTimeout(() => {
+      setState((s) => ({
+        ...s,
+        authUsers: [...(s.authUsers ?? []), { email: normalizedEmail, password }],
+      }));
+
+      setLoading(false);
+      setPassword('');
+      setConfirmPassword('');
+      setMode(MODES.LOGIN);
+      showSuccess('Signup successful. Please login. (Validation skipped)');
+    }, 500);
+  };
+
+  const handleLogin = () => {
+    setMessage('');
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const derivedName = (normalizedEmail || 'doctor')
+      .split('@')[0]
+      .replace(/[._-]+/g, ' ')
+      .replace(/\b\w/g, (ch) => ch.toUpperCase());
+
+    setLoading(true);
+    setTimeout(() => {
+      setState((s) => ({
+        ...s,
+        doctor: {
+          ...(s.doctor ?? {}),
+          name: s.doctor?.name || derivedName || 'Doctor',
+          hospital: s.doctor?.hospital || 'Not set',
+          phone: normalizedEmail || 'guest@medirelay.local',
+          email: normalizedEmail || 'guest@medirelay.local',
+          role: s.doctor?.role || 'Doctor',
+          isLoggedIn: true,
+        },
+      }));
+      setLoading(false);
+      onAuth?.();
+    }, 400);
   };
 
   return (
@@ -70,135 +82,88 @@ export default function AuthScreen({ onAuth }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-
-          {/* Logo */}
           <View style={styles.logoBlock}>
-            <View style={styles.logoCircle}>
-              <AppIcon name="check" size={28} color={colors.primary} />
-            </View>
-            <Text style={[typography.displayMd, { color: colors.primary, marginTop: spacing[4] }]}>
-              MediRelay
-            </Text>
-            <Text style={[typography.bodyMd, { color: colors.outline, marginTop: spacing[1.5] }]}>
-              Safe handoffs. Every time.
-            </Text>
+            <Text style={styles.brand}>MediRelay</Text>
+            <Text style={styles.tagline}>Secure clinical handoffs</Text>
           </View>
 
-          {/* Step: Phone */}
-          {step === STEPS.PHONE && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
-                Enter your phone number
-              </Text>
-              <LabeledInput
-                label="Phone Number"
-                value={phone}
-                onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                placeholder="10-digit mobile number"
-                keyboardType="phone-pad"
-                required
-                autoFocus
-              />
-              <PrimaryButton
-                label="Send OTP"
-                onPress={handleSendOtp}
-                disabled={phone.length < 10}
-                loading={loading}
-              />
-            </View>
-          )}
+          <View style={[styles.card, shadow.md]}>
+            <Text style={styles.title}>{mode === MODES.LOGIN ? 'Login' : 'Sign Up'}</Text>
+            <Text style={styles.subtitle}>
+              {mode === MODES.LOGIN
+                ? 'Enter your email and password to continue.'
+                : 'Create an account with email and password.'}
+            </Text>
 
-          {/* Step: OTP */}
-          {step === STEPS.OTP && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[2] }]}>
-                Enter OTP
-              </Text>
-              <Text style={[typography.bodySm, { color: colors.outline, marginBottom: spacing[5] }]}>
-                Sent to +91 {phone}
-              </Text>
-              <OTPBoxes value={otp} onChange={setOtp} length={6} />
-              <View style={styles.resendRow}>
-                {resendTimer > 0 ? (
-                  <Text style={[typography.bodySm, { color: colors.outline, marginTop: spacing[5] }]}>
-                    Resend in {resendTimer}s
-                  </Text>
-                ) : (
-                  <TouchableOpacity
-                    onPress={() => { setOtp(''); setResendTimer(30); }}
-                    style={{ marginTop: spacing[5] }}
-                  >
-                    <Text style={[typography.bodyMd, { color: colors.primary }]}>Resend OTP</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-              {loading && (
-                <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginTop: spacing[4] }]}>
-                  Verifying…
-                </Text>
-              )}
-              <TouchableOpacity onPress={() => { setStep(STEPS.PHONE); setOtp(''); }} style={{ marginTop: spacing[4] }}>
-                <View style={styles.changeNumberRow}>
-                  <AppIcon name="back" size={14} color={colors.outline} />
-                  <Text style={[typography.bodySm, { color: colors.outline, textAlign: 'center', marginLeft: spacing[1] }]}>Change number</Text>
-                </View>
-              </TouchableOpacity>
-            </View>
-          )}
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="doctor@hospital.com"
+              placeholderTextColor={colors.outline}
+              style={styles.input}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
 
-          {/* Step: Profile (first login only) */}
-          {step === STEPS.PROFILE && (
-            <View style={styles.card}>
-              <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
-                Complete your profile
-              </Text>
-              <LabeledInput
-                label="Full Name"
-                value={name}
-                onChangeText={setName}
-                placeholder="Dr. Firstname Lastname"
-                required
-                autoFocus
-              />
-              {/* Role toggle */}
-              <View style={{ marginBottom: spacing[5] }}>
-                <Text style={[typography.labelMd, { color: colors.onSurfaceVariant, marginBottom: spacing[2] }]}>
-                  Role
-                </Text>
-                <View style={styles.roleRow}>
-                  {['Doctor', 'Nurse'].map((r) => (
-                    <TouchableOpacity
-                      key={r}
-                      onPress={() => setRole(r)}
-                      style={[
-                        styles.roleBtn,
-                        role === r
-                          ? { backgroundColor: colors.primary, borderColor: colors.primary }
-                          : { borderColor: colors.outlineVariant },
-                      ]}
-                    >
-                      <Text style={[typography.titleSm, { color: role === r ? colors.onPrimary : colors.onSurfaceVariant }]}>
-                        {r}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-              <LabeledInput
-                label="Hospital Name"
-                value={hospital}
-                onChangeText={setHospital}
-                placeholder="e.g. Apollo Hospital"
-                required
-              />
-              <PrimaryButton
-                label="Get Started"
-                onPress={handleSaveProfile}
-                disabled={!name || !hospital}
-              />
-            </View>
-          )}
+            <Text style={styles.label}>Password</Text>
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Enter password"
+              placeholderTextColor={colors.outline}
+              style={styles.input}
+              secureTextEntry
+            />
 
+            {mode === MODES.SIGNUP && (
+              <>
+                <Text style={styles.label}>Re-enter Password</Text>
+                <TextInput
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  placeholder="Re-enter password"
+                  placeholderTextColor={colors.outline}
+                  style={styles.input}
+                  secureTextEntry
+                />
+              </>
+            )}
+
+            {message ? (
+              <Text style={[styles.message, messageType === 'error' ? styles.errorText : styles.successText]}>
+                {message}
+              </Text>
+            ) : null}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, loading && styles.btnDisabled]}
+              onPress={mode === MODES.LOGIN ? handleLogin : handleSignup}
+              disabled={loading}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.primaryBtnText}>
+                {loading ? 'Please wait...' : mode === MODES.LOGIN ? 'Login' : 'Create Account'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={() => {
+                setMode(mode === MODES.LOGIN ? MODES.SIGNUP : MODES.LOGIN);
+                setPassword('');
+                setConfirmPassword('');
+                setMessage('');
+              }}
+              style={styles.switchBtn}
+            >
+              <Text style={styles.switchBtnText}>
+                {mode === MODES.LOGIN
+                  ? "Don't have an account? Sign Up"
+                  : 'Already have an account? Login'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -210,32 +175,49 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   container: {
     flexGrow: 1,
-    padding: spacing[6],
     justifyContent: 'center',
+    paddingHorizontal: spacing[6],
+    paddingVertical: spacing[8],
   },
-  logoBlock: { alignItems: 'center', marginBottom: spacing[8] },
-  logoCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: colors.secondaryContainer,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  changeNumberRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
+  logoBlock: { alignItems: 'center', marginBottom: spacing[7] },
+  brand: { ...typography.displayMd, color: colors.primary, fontWeight: '800' },
+  tagline: { ...typography.bodyMd, color: colors.outline, marginTop: spacing[1] },
   card: {
     backgroundColor: colors.surfaceContainerLowest,
     borderRadius: radius.xl,
     padding: spacing[6],
   },
-  resendRow: { alignItems: 'center' },
-  roleRow: { flexDirection: 'row', gap: spacing[3] },
-  roleBtn: {
-    flex: 1,
-    height: 48,
+  title: { ...typography.headlineMd, color: colors.onSurface },
+  subtitle: { ...typography.bodySm, color: colors.outline, marginTop: spacing[1], marginBottom: spacing[5] },
+  label: { ...typography.labelMd, color: colors.onSurfaceVariant, marginBottom: spacing[1.5] },
+  input: {
+    height: 52,
     borderRadius: radius.md,
+    borderWidth: 1.2,
+    borderColor: colors.outlineVariant,
+    backgroundColor: colors.surfaceContainerLow,
+    paddingHorizontal: spacing[3],
+    color: colors.onSurface,
+    marginBottom: spacing[4],
+    fontSize: 16,
+  },
+  message: { ...typography.bodySm, marginBottom: spacing[3] },
+  errorText: { color: colors.error },
+  successText: { color: '#1a6640' },
+  primaryBtn: {
+    height: 52,
+    borderRadius: radius.md,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
+    marginTop: spacing[1],
   },
+  primaryBtnText: {
+    ...typography.titleMd,
+    color: colors.onPrimary,
+    fontWeight: '700',
+  },
+  btnDisabled: { opacity: 0.7 },
+  switchBtn: { marginTop: spacing[4], alignItems: 'center' },
+  switchBtnText: { ...typography.bodyMd, color: colors.primary },
 });
