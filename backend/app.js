@@ -1,21 +1,12 @@
-require("dotenv").config();
-const app = require("./server.js");
-const connectToDb = require("./config/db.js");
+const express = require("express");
+const app = express();
 
-const PORT = 8080;
+app.use(express.json());
 
-async function startServer() {
-    try {
-        await connectToDb(); // connect first
+// Routes
+app.use("/api/auth", require("./routes/authRoutes"));
+app.use("/api/patients", require("./routes/patientRoutes"));
+app.use("/api/transfers", require("./routes/transferRoutes"));
 
-        app.listen(PORT, () => {
-            console.log(`✅ Server is running on port ${PORT}`);
-        });
+module.exports = app;
 
-    } catch (error) {
-        console.error("❌ Failed to start server:", error.message);
-        process.exit(1);
-    }
-}
-
-startServer();

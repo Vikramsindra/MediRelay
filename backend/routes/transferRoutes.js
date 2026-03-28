@@ -1,3 +1,5 @@
+const auth = require("../middleware/authMiddleware");
+const { requireDoctor } = require("../middleware/roleMiddleware");
 const express = require("express");
 const router = express.Router();
 
@@ -6,7 +8,7 @@ const Transfer = require("../models/trasferRecord.js");
 // ==============================
 // 🆕 Create Transfer (Draft)
 // ==============================
-router.post("/", async (req, res) => {
+router.post("/",auth, async (req, res) => {
     try {
         const transfer = await Transfer.create({
             ...req.body,
@@ -30,7 +32,7 @@ router.post("/", async (req, res) => {
 // ==============================
 // ✏️ Update Transfer
 // ==============================
-router.patch("/:id", async (req, res) => {
+router.patch("/:id", auth, async (req, res) => {
     try {
         const transfer = await Transfer.findByIdAndUpdate(
             req.params.id,
@@ -62,10 +64,10 @@ router.patch("/:id", async (req, res) => {
 // ==============================
 // 🚀 Submit Transfer (Generate QR)
 // ==============================
-router.post("/submit", async (req, res) => {
+router.post("/submit",auth, async (req, res) => {
     try {
         const { transferId } = req.body;
-
+        const { nanoid } = require("nanoid");
         const transfer = await Transfer.findById(transferId);
 
         if (!transfer) {
@@ -77,7 +79,7 @@ router.post("/submit", async (req, res) => {
 
         // Generate IDs (simple version)
         transfer.reportId = "TR-" + Date.now();
-        transfer.shareId = Math.random().toString(36).substring(2, 8);
+        transfer.shareId = nanoid(8);
 
         transfer.status = "submitted";
 
@@ -132,7 +134,7 @@ router.get("/share/:shareId", async (req, res) => {
 // ==============================
 // ✅ Acknowledge Transfer
 // ==============================
-router.post("/:id/acknowledge", async (req, res) => {
+router.post("/:id/acknowledge",auth, requireDoctor, async (req, res) => {
     try {
         const { condition, note, discrepancy } = req.body;
 

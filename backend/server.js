@@ -1,15 +1,21 @@
-const express = require("express");
-const app = express();
-const patientRoutes = require("./routes/patientRoutes.js");
+require("dotenv").config();
+const app = require("./app");         // import the app
+const connectToDb = require("./config/db.js");
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+const PORT = 8080;
 
-app.get("/test", (req, res) => {
-    res.send("test route is working ");
-})
+async function startServer() {
+    try {
+        await connectToDb(); // connect DB first
 
-app.use("/api/v1/patients", patientRoutes);
+        app.listen(PORT, () => {
+            console.log(`✅ Server is running on port ${PORT}`);
+        });
 
-module.exports = app;
+    } catch (error) {
+        console.error("❌ Failed to start server:", error.message);
+        process.exit(1);
+    }
+}
 
+startServer();
