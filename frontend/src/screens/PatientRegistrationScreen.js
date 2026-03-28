@@ -9,8 +9,7 @@ import { LabeledInput, SimpleDropdown } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
 import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
-import { setState } from '../store';
-import { buildApiUrl, API_PATHS } from '../api/config';
+import { setState, getState } from '../store';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
 const RELATIONS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Other'];
@@ -49,7 +48,6 @@ export default function PatientRegistrationScreen({ navigation }) {
 
   // Errors
   const [errors, setErrors] = useState({});
-  const [saving, setSaving] = useState(false);
 
   const toggleCondition = (c) => {
     if (c === 'None') { setConditions([]); return; }
@@ -81,65 +79,18 @@ export default function PatientRegistrationScreen({ navigation }) {
     return Object.keys(e).length === 0;
   };
 
-  const handleSave = async () => {
+  const handleSave = () => {
     if (!validate()) return;
-    setSaving(true);
-    setErrors((e) => ({ ...e, api: undefined }));
-
-    const payload = {
-      fullName: name,
-      age: Number(age),
-      sex,
-      bloodGroup,
-      phone,
+    const newPatient = {
+      id: 'P' + Date.now(),
+      name, age: Number(age), sex, bloodGroup, phone,
       emergencyContact: { name: ecName, phone: ecPhone, relation: ecRelation },
-      noKnownAllergies: noAllergies,
       allergies: noAllergies ? [] : allergies,
-      chronicConditions: conditions,
-      noRegularMedications: noMeds,
-      permanentMedications: noMeds
-        ? []
-        : medications.map((m) => ({
-          name: m.name,
-          dose: m.dose,
-          route: m.route,
-          frequency: m.frequency,
-        })),
+      conditions,
+      medications: noMeds ? [] : medications,
     };
-
-    try {
-      const response = await fetch(buildApiUrl(API_PATHS.patients), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      const json = await response.json();
-
-      if (!response.ok || !json?.success) {
-        throw new Error(json?.message || 'Unable to save patient');
-      }
-
-      const created = json.data;
-      const newPatient = {
-        id: created._id,
-        name: created.fullName,
-        age: created.age,
-        sex: created.sex,
-        bloodGroup: created.bloodGroup,
-        phone: created.phone,
-        emergencyContact: created.emergencyContact ?? {},
-        allergies: created.allergies ?? [],
-        conditions: created.chronicConditions ?? [],
-        medications: created.permanentMedications ?? [],
-      };
-
-      setState((s) => ({ ...s, patients: [...s.patients, newPatient] }));
-      navigation.goBack();
-    } catch (error) {
-      setErrors((e) => ({ ...e, api: error.message || 'Could not connect to backend server' }));
-    } finally {
-      setSaving(false);
-    }
+    setState((s) => ({ ...s, patients: [...s.patients, newPatient] }));
+    navigation.goBack();
   };
 
   return (
@@ -157,12 +108,6 @@ export default function PatientRegistrationScreen({ navigation }) {
           <Text style={[typography.headlineSm, { color: colors.onSurface }]}>Register Patient</Text>
           <View style={{ width: 60 }} />
         </View>
-
-        {errors.api ? (
-          <View style={styles.apiErrorWrap}>
-            <Text style={styles.errorText}>{errors.api}</Text>
-          </View>
-        ) : null}
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
@@ -284,7 +229,7 @@ export default function PatientRegistrationScreen({ navigation }) {
           )}
 
           <View style={{ height: spacing[8] }} />
-          <PrimaryButton label="Save Patient" onPress={handleSave} loading={saving} />
+          <PrimaryButton label="Save Patient" onPress={handleSave} />
           <View style={{ height: spacing[8] }} />
         </ScrollView>
       </KeyboardAvoidingView>
@@ -305,13 +250,6 @@ const styles = StyleSheet.create({
   headerBar: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
     paddingHorizontal: spacing[5], paddingTop: spacing[4], paddingBottom: spacing[3],
-  },
-  apiErrorWrap: {
-    marginHorizontal: spacing[5],
-    marginBottom: spacing[2],
-    padding: spacing[2],
-    borderRadius: radius.md,
-    backgroundColor: colors.errorContainer,
   },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   scroll: { paddingHorizontal: spacing[5], paddingTop: spacing[2] },
