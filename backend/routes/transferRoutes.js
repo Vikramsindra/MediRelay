@@ -1,8 +1,8 @@
-const express  = require("express");
-const router   = express.Router();
+const express = require("express");
+const router = express.Router();
 
 const Transfer = require("../models/TransferRecord");   // fixed filename (was trasferRecord)
-const Patient  = require("../models/PatientModel");
+const Patient = require("../models/PatientModel");
 const { protect, restrictTo, optionalAuth } = require("../middleware/authMiddleware");
 const { generateQRCode, getShareUrl } = require("../utils/generateQR");
 
@@ -25,43 +25,43 @@ router.get("/share/:shareId", optionalAuth, async (req, res) => {
         // Return a structured response with critical info at the top.
         // Frontend should render the `critical` block FIRST (no scrolling needed).
         const response = {
-            _id:      transfer._id,
-            shareId:  transfer.shareId,
-            status:   transfer.status,
+            _id: transfer._id,
+            shareId: transfer.shareId,
+            status: transfer.status,
             createdAt: transfer.createdAt,
 
             // 🚨 Critical block — show this first, above the fold
             critical: {
-                allergies:           transfer.allergies,
+                allergies: transfer.allergies,
                 criticalMedications: transfer.criticalMedications,
-                severity:            transfer.severity,
-                chiefComplaint:      transfer.chiefComplaint,
-                reasonForTransfer:   transfer.reasonForTransfer,
+                severity: transfer.severity,
+                chiefComplaint: transfer.chiefComplaint,
+                reasonForTransfer: transfer.reasonForTransfer,
             },
 
             patient: {
-                fullName:    transfer.patient.fullName,
-                abhaId:      transfer.patient.abhaId,
+                fullName: transfer.patient.fullName,
+                abhaId: transfer.patient.abhaId,
                 dateOfBirth: transfer.patient.dateOfBirth,
-                gender:      transfer.patient.gender,
-                bloodGroup:  transfer.patient.bloodGroup,
-                phone:       transfer.patient.phone,
+                gender: transfer.patient.gender,
+                bloodGroup: transfer.patient.bloodGroup,
+                phone: transfer.patient.phone,
             },
 
             clinical: {
-                diagnosis:             transfer.diagnosis,
-                conditionCategory:     transfer.conditionCategory,
-                clinicalSummary:       transfer.clinicalSummary,
-                vitals:                transfer.vitals,
-                activeMedications:     transfer.activeMedications,
+                diagnosis: transfer.diagnosis,
+                conditionCategory: transfer.conditionCategory,
+                clinicalSummary: transfer.clinicalSummary,
+                vitals: transfer.vitals,
+                activeMedications: transfer.activeMedications,
                 pendingInvestigations: transfer.pendingInvestigations,
-                modeOfTransfer:        transfer.modeOfTransfer,
+                modeOfTransfer: transfer.modeOfTransfer,
             },
 
             hospitals: {
-                sending:   transfer.sendingHospital,
+                sending: transfer.sendingHospital,
                 receiving: transfer.receivingHospital,
-                doctor:    transfer.doctorName,
+                doctor: transfer.doctorName,
             },
 
             acknowledgement: transfer.acknowledgement,
@@ -91,16 +91,16 @@ router.get("/timeline/:abhaId", protect, async (req, res) => {
         }
 
         const timeline = transfers.map(t => ({
-            transferId:      t._id,
-            shareId:         t.shareId,
-            date:            t.createdAt,
-            from:            t.sendingHospital,
-            to:              t.receivingHospital,
-            status:          t.status,
-            severity:        t.severity,
-            chiefComplaint:  t.chiefComplaint,
-            doctor:          t.doctorName,
-            arrivedAs:       t.acknowledgement?.arrivalCondition,
+            transferId: t._id,
+            shareId: t.shareId,
+            date: t.createdAt,
+            from: t.sendingHospital,
+            to: t.receivingHospital,
+            status: t.status,
+            severity: t.severity,
+            chiefComplaint: t.chiefComplaint,
+            doctor: t.doctorName,
+            arrivedAs: t.acknowledgement?.arrivalCondition,
         }));
 
         res.json({ success: true, abhaId: req.params.abhaId, timeline });
@@ -129,8 +129,8 @@ router.get("/", protect, async (req, res) => {
             }
         } else {
             // Doctor can filter explicitly
-            if (abhaId)    query["patient.abhaId"] = abhaId;
-            if (patientId) query["patient._id"]    = patientId;
+            if (abhaId) query["patient.abhaId"] = abhaId;
+            if (patientId) query["patient._id"] = patientId;
         }
 
         if (status) query.status = status;
@@ -180,29 +180,29 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
 
         const transfer = await Transfer.create({
             patient: {
-                _id:          patient._id,
-                fullName:     patient.fullName,
-                abhaId:       patient.abhaId,
-                abhaAddress:  patient.abhaAddress,
-                dateOfBirth:  patient.dateOfBirth,
-                gender:       patient.gender,
-                bloodGroup:   patient.bloodGroup,
-                phone:        patient.phone,
+                _id: patient._id,
+                fullName: patient.fullName,
+                abhaId: patient.abhaId,
+                abhaAddress: patient.abhaAddress,
+                dateOfBirth: patient.dateOfBirth,
+                gender: patient.gender,
+                bloodGroup: patient.bloodGroup,
+                phone: patient.phone,
                 knownAllergies: patient.knownAllergies,
             },
             sendingHospital,
-            sendingDoctorId:  req.user._id,
-            doctorName:       req.user.name,    // works now because protect() does DB lookup
+            sendingDoctorId: req.user._id,
+            doctorName: req.user.name,    // works now because protect() does DB lookup
             receivingHospital,
             chiefComplaint,
             conditionCategory,
             severity,
             reasonForTransfer,
             diagnosis,
-            vitals:              vitals || {},
-            activeMedications:   meds,
+            vitals: vitals || {},
+            activeMedications: meds,
             criticalMedications,
-            allergies:           patient.knownAllergies || [],
+            allergies: patient.knownAllergies || [],
             clinicalSummary,
             pendingInvestigations: pendingInvestigations || [],
             modeOfTransfer,
@@ -212,10 +212,10 @@ router.post("/", protect, restrictTo("doctor"), async (req, res) => {
 
         // Generate QR code
         // This line in your POST route now correctly gets the Base64 image
-const qrCodeUrl = await generateQRCode(shareId); 
+        const qrCodeUrl = await generateQRCode(shareId);
 
-// This line gets the text version of the link (useful for 'Copy Link' buttons)
-const shareUrl = getShareUrl(shareId);
+        // This line gets the text version of the link (useful for 'Copy Link' buttons)
+        const shareUrl = getShareUrl(shareId);
         if (qrCodeUrl) {
             transfer.qrCodeUrl = qrCodeUrl;
             await transfer.save();
@@ -230,6 +230,24 @@ const shareUrl = getShareUrl(shareId);
     } catch (error) {
         console.error(error);
         res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+// ─────────────────────────────────────────────────────────
+// GET /api/v1/transfers/scan/:shareId  (PUBLIC — QR code scan endpoint)
+// MUST be defined BEFORE /:id to avoid Express matching "scan" as an ObjectId
+// ─────────────────────────────────────────────────────────
+router.get("/scan/:shareId", async (req, res) => {
+    try {
+        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
+
+        if (!transfer) {
+            return res.status(404).json({ success: false, message: "Transfer record not found" });
+        }
+
+        res.json({ success: true, data: transfer });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Server error during scan" });
     }
 });
 
@@ -258,24 +276,6 @@ router.get("/:id", protect, async (req, res) => {
         res.status(200).json({ success: true, data: transfer });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
-    }
-});
-
-// routes/transferRoutes.js
-
-// This is the endpoint the QR code URL points to
-router.get("/scan/:shareId", async (req, res) => { // Added async
-    try {
-        // Changed TransferRecord to Transfer to match your import at the top
-        const transfer = await Transfer.findOne({ shareId: req.params.shareId }); 
-        
-        if (!transfer) {
-            return res.status(404).json({ success: false, message: "Transfer record not found" });
-        }
-
-        res.json({ success: true, data: transfer });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Server error during scan" });
     }
 });
 
@@ -327,8 +327,8 @@ router.patch("/:id/acknowledge", protect, restrictTo("doctor"), async (req, res)
         }
 
         transfer.acknowledgement = {
-            acknowledgedBy:   req.user.name,
-            acknowledgedAt:   new Date(),
+            acknowledgedBy: req.user.name,
+            acknowledgedAt: new Date(),
             arrivalCondition,
             arrivalNotes,
             discrepancies,
