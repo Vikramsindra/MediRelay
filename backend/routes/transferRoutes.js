@@ -2,18 +2,89 @@ const express = require("express");
 const router = express.Router();
 
 const Transfer = require("../models/trasferRecord.js");
+const Patient = require("../models/PatientModel.js");
 
 // ==============================
-// 🆕 Create Transfer (Draft)
+// 🆕 Create Transfer (Full Data, No Draft)
 // ==============================
 router.post("/", async (req, res) => {
     try {
+        const {
+            patientId,
+            sendingHospital,
+            receivingHospital,
+            doctorName,
+            chiefComplaint,
+            conditionCategory,
+            severity,
+            reasonForTransfer,
+            vitals,
+            activeMedications,
+            clinicalSummary,
+            pendingInvestigations,
+            modeOfTransfer
+        } = req.body;
+
+        // Fetch patient data from DB
+        const patient = await Patient.findById(patientId);
+        if (!patient) {
+            return res.status(404).json({
+                success: false,
+                message: "Patient not found"
+            });
+        }
+
+        // Generate a unique shareId for this transfer
+        const shareId = `${patient._id.toString()}-${Date.now().toString(36)}`;
+
+        // Create transfer record
         const transfer = await Transfer.create({
-            ...req.body,
-            status: "draft"
+            patient,
+            sendingHospital,
+            receivingHospital,
+            doctorName,
+            chiefComplaint,
+            conditionCategory,
+            severity,
+            reasonForTransfer,
+            vitals: vitals || {},
+            activeMedications: activeMedications || [],
+            clinicalSummary,
+            pendingInvestigations: pendingInvestigations || [],
+            modeOfTransfer,
+            shareId,
+            status: "submitted" // directly submitted
         });
 
         res.status(201).json({
+            success: true,
+            data: transfer,
+            link: `http://localhost:8080/transfers/share/${shareId}`
+        });
+
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
+// ==============================
+// 📄 Get Single Transfer by ID
+// ==============================
+router.get("/:id", async (req, res) => {
+    try {
+        const transfer = await Transfer.findById(req.params.id);
+        if (!transfer) {
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found"
+            });
+        }
+
+        res.status(200).json({
             success: true,
             data: transfer
         });
@@ -26,9 +97,34 @@ router.post("/", async (req, res) => {
     }
 });
 
+// ==============================
+// 🔗 Get Transfer by Share ID (QR / Link)
+// ==============================
+router.get("/share/:shareId", async (req, res) => {
+    try {
+        const transfer = await Transfer.findOne({ shareId: req.params.shareId });
+        if (!transfer) {
+            return res.status(404).json({
+                success: false,
+                message: "Transfer not found"
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            data: transfer
+        });
+
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
 
 // ==============================
-// ✏️ Update Transfer
+// 🔄 Update Transfer
 // ==============================
 router.patch("/:id", async (req, res) => {
     try {
@@ -58,184 +154,19 @@ router.patch("/:id", async (req, res) => {
     }
 });
 
-
 // ==============================
-// 🚀 Submit Transfer (Generate QR)
+// 📜 Get Transfer History (All or by Patient)
 // ==============================
-router.post("/submit", async (req, res) => {
+router.get("/", async (req, res) => {
     try {
-        const { transferId } = req.body;
-
-        const transfer = await Transfer.findById(transferId);
-
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        // Generate IDs (simple version)
-        transfer.reportId = "TR-" + Date.now();
-        transfer.shareId = Math.random().toString(36).substring(2, 8);
-
-        transfer.status = "submitted";
-
-        await transfer.save();
-
-        res.status(200).json({
-            success: true,
-            reportId: transfer.reportId,
-            shareId: transfer.shareId,
-            link: `http://localhost:8080/transfers/share/${transfer.shareId}`
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-
-// ==============================
-// 🔗 Get Transfer by Share ID
-// ==============================
-router.get("/share/:shareId", async (req, res) => {
-    try {
-        const transfer = await Transfer.findOne({
-            shareId: req.params.shareId
-        });
-
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        res.status(200).json({
-            success: true,
-            data: transfer
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-
-// ==============================
-// ✅ Acknowledge Transfer
-// ==============================
-router.post("/:id/acknowledge", async (req, res) => {
-    try {
-        const { condition, note, discrepancy } = req.body;
-
-        const transfer = await Transfer.findById(req.params.id);
-
-        if (!transfer) {
-            return res.status(404).json({
-                success: false,
-                message: "Transfer not found"
-            });
-        }
-
-        transfer.status = "acknowledged";
-        transfer.acknowledgement = {
-            condition,
-            note,
-            discrepancy,
-            time: new Date()
-        };
-
-        await transfer.save();
-
-        res.status(200).json({
-            success: true,
-            message: "Transfer acknowledged",
-            data: transfer
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-
-// ==============================
-// 📥 Incoming Transfers
-// ==============================
-router.get("/incoming", async (req, res) => {
-    try {
-        const transfers = await Transfer.find({
-            status: "submitted"
-        }).sort({ createdAt: -1 });
-
-        res.status(200).json({
-            success: true,
-            data: transfers
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-
-// ==============================
-// 📤 Sent Transfers
-// ==============================
-router.get("/sent", async (req, res) => {
-    try {
-        const transfers = await Transfer.find()
-            .sort({ createdAt: -1 })
-            .limit(5);
-
-        res.status(200).json({
-            success: true,
-            data: transfers
-        });
-
-    } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
-    }
-});
-
-
-// ==============================
-// 📜 Transfer History
-// ==============================
-router.get("/history", async (req, res) => {
-    try {
-        const { type } = req.query;
+        const { patientId } = req.query;
 
         let query = {};
-
-        // Simple filtering (can improve later)
-        if (type === "sent") {
-            query = {}; // add doctor filter later
+        if (patientId) {
+            query = { "patient._id": patientId };
         }
 
-        if (type === "received") {
-            query = {}; // add hospital filter later
-        }
-
-        const transfers = await Transfer.find(query)
-            .sort({ createdAt: -1 });
+        const transfers = await Transfer.find(query).sort({ createdAt: -1 });
 
         res.status(200).json({
             success: true,

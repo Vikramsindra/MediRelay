@@ -1,6 +1,7 @@
 const express = require("express");
 const app = express();
 const patientRoutes = require("./routes/patientRoutes.js");
+const transferRoutes = require("./routes/transferRoutes.js");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -10,6 +11,7 @@ app.get("/test", (req, res) => {
 })
 
 app.use("/api/v1/patients", patientRoutes);
+app.use("/api/v1/transfers", transferRoutes);
 
 module.exports = app;
 
