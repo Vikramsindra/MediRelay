@@ -8,6 +8,7 @@ import { colors, typography, spacing, radius } from '../theme';
 import { LabeledInput } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
+import { mapTransferFromApi, parseTransferQrPayload } from '../api/transfers';
 
 export default function QRScannerScreen({ navigation, route }) {
   const mode = route?.params?.mode; // 'paste' or undefined (camera)
@@ -15,11 +16,46 @@ export default function QRScannerScreen({ navigation, route }) {
   const [scanning, setScanning] = useState(mode !== 'paste');
   const [permission, requestPermission] = useCameraPermissions();
   const [lastScannedData, setLastScannedData] = useState('');
+  const [scanError, setScanError] = useState('');
+
+  const openScannedPayload = (rawValue) => {
+    const scannedText = String(rawValue || '').trim();
+    if (!scannedText) {
+      setScanError('Invalid QR payload.');
+      return false;
+    }
+
+    const transferFromQr = parseTransferQrPayload(scannedText);
+    if (transferFromQr) {
+      const mappedTransfer = transferFromQr?.patientName && transferFromQr?.id
+        ? transferFromQr
+        : mapTransferFromApi(transferFromQr);
+      navigation.navigate('RecordViewer', {
+        transferId: mappedTransfer.id,
+        transferPayload: mappedTransfer,
+      });
+      return true;
+    }
+
+    const shareIdMatch = scannedText.match(/\/share\/([\w-]+)/i)
+      || scannedText.match(/\/r\/([\w-]+)/i);
+    if (shareIdMatch?.[1]) {
+      navigation.navigate('RecordViewer', { transferShareId: shareIdMatch[1] });
+      return true;
+    }
+
+    const objectIdMatch = scannedText.match(/\b([a-fA-F0-9]{24})\b/);
+    if (objectIdMatch?.[1]) {
+      navigation.navigate('RecordViewer', { transferId: objectIdMatch[1] });
+      return true;
+    }
+
+    setScanError('Unsupported QR content. Use a MediRelay transfer QR.');
+    return false;
+  };
 
   const handlePasteNavigate = () => {
-    const match = pasteValue.match(/TR-[\w]+/);
-    const id = match ? match[0] : 'TR-4819';
-    navigation.navigate('RecordViewer', { transferId: id });
+    openScannedPayload(pasteValue);
   };
 
   return (
@@ -47,7 +83,15 @@ export default function QRScannerScreen({ navigation, route }) {
               barcodeScannerSettings={{
                 barcodeTypes: ['qr'],
               }}
-              onBarcodeScanned={({ data }) => setLastScannedData(data)}
+              onBarcodeScanned={({ data }) => {
+                if (lastScannedData) return;
+                setLastScannedData(data);
+                setScanError('');
+                setTimeout(() => {
+                  const opened = openScannedPayload(data);
+                  if (!opened) setLastScannedData('');
+                }, 120);
+              }}
             />
           ) : (
             <View style={styles.permissionWrap}>
@@ -71,13 +115,18 @@ export default function QRScannerScreen({ navigation, route }) {
             Point camera at MediRelay QR code
           </Text>
           <Text style={[typography.bodySm, { color: 'rgba(255,255,255,0.6)', marginTop: spacing[2], textAlign: 'center' }]}>
-            Scanner is live. Navigation on scan will be wired next.
+            Scanner is live. Opens transfer automatically after decode.
           </Text>
           {lastScannedData ? (
             <View style={styles.detectedRow}>
               <AppIcon name="check" size={16} color="#7effc5" />
               <Text style={[typography.titleMd, { color: '#7effc5', marginLeft: spacing[1.5] }]}>QR detected</Text>
             </View>
+          ) : null}
+          {scanError ? (
+            <Text style={[typography.bodySm, { color: '#ffb3b3', marginTop: spacing[3], textAlign: 'center' }]}>
+              {scanError}
+            </Text>
           ) : null}
         </View>
       ) : (
@@ -102,6 +151,11 @@ export default function QRScannerScreen({ navigation, route }) {
             onPress={handlePasteNavigate}
             disabled={pasteValue.length < 5}
           />
+          {scanError ? (
+            <Text style={[typography.bodySm, { color: colors.error, marginTop: spacing[2] }]}>
+              {scanError}
+            </Text>
+          ) : null}
           <TouchableOpacity onPress={() => setScanning(true)} style={styles.switchBtn}>
             <Text style={[typography.bodyMd, { color: colors.primary, textAlign: 'center' }]}>
               Scan QR code instead

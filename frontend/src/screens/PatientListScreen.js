@@ -10,6 +10,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
 import { getState, setState, useStore } from '../store';
 import { searchPatients } from '../api/patients';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 export default function PatientListScreen({ navigation, route }) {
   const { patients, doctor } = useStore();
@@ -20,11 +21,11 @@ export default function PatientListScreen({ navigation, route }) {
   const [searchError, setSearchError] = useState('');
 
   useEffect(() => {
-    const doctorId = doctor?.userId || getState()?.doctor?.userId;
-    if (!doctorId) return;
-
     let cancelled = false;
     const timer = setTimeout(async () => {
+      const doctorId = doctor?.userId || getState()?.doctor?.userId || await getStoredDoctorId();
+      if (!doctorId) return;
+
       try {
         setIsSearching(true);
         setSearchError('');

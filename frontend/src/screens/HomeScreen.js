@@ -50,7 +50,7 @@ export default function HomeScreen({ navigation, onLogout }) {
   }, [doctor?.userId]);
 
   const incoming = transfers.filter(
-    (t) => t.direction === 'received' && t.status === 'Pending',
+    (t) => t.direction === 'received' && String(t.status || '').toLowerCase() === 'pending',
   );
   const recentSent = transfers
     .filter((t) => t.direction === 'sent')

@@ -4,50 +4,21 @@ import {
   TouchableOpacity, Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import QRCode from 'react-native-qrcode-svg';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { SeverityBadge } from '../components/Badges';
 import { SecondaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
-import { getTransferById } from '../api/transfers';
+import { buildTransferQrPayload, getTransferById } from '../api/transfers';
 import { setState, useStore } from '../store';
-
-// Minimal QR placeholder (real QR would use react-native-qrcode-svg)
-function QRPlaceholder({ value }) {
-  return (
-    <View style={styles.qrBox}>
-      {/* 7x7 grid approximation for visual authenticity */}
-      {Array.from({ length: 7 }).map((_, row) => (
-        <View key={row} style={styles.qrRow}>
-          {Array.from({ length: 7 }).map((_, col) => {
-            const isCorner =
-              (row < 2 && col < 2) || (row < 2 && col > 4) || (row > 4 && col < 2);
-            const isBorder =
-              (row === 0 || row === 6 || col === 0 || col === 6) ||
-              (row < 3 && col < 3) || (row < 3 && col > 3) || (row > 3 && col < 3);
-            const filled = isCorner || (Math.sin(row * 3 + col * 7) > 0);
-            return (
-              <View
-                key={col}
-                style={[
-                  styles.qrCell,
-                  { backgroundColor: filled ? colors.onSurface : colors.white },
-                ]}
-              />
-            );
-          })}
-        </View>
-      ))}
-      <Text style={styles.qrLabel}>{value?.slice(0, 20)}</Text>
-    </View>
-  );
-}
 
 const STATUSES = ['Pending', 'Viewed', 'Acknowledged'];
 
 export default function QRDisplayScreen({ navigation, route }) {
-  const { transferId } = route.params ?? {};
+  const { transferId, qrPayload: qrPayloadFromRoute } = route.params ?? {};
   const { transfers } = useStore();
   const [transfer, setTransfer] = useState(transfers.find((t) => t.id === transferId) || null);
+  const [qrPayload, setQrPayload] = useState('');
   const shortLink = transfer?.shareId
     ? `medirelay.app/r/${transfer.shareId}`
     : `medirelay.app/r/${transferId}`;
@@ -65,6 +36,7 @@ export default function QRDisplayScreen({ navigation, route }) {
         const fetched = await getTransferById(transferId);
         if (cancelled) return;
         setTransfer(fetched);
+        setQrPayload(buildTransferQrPayload(fetched));
         setStatus(fetched?.status || 'Pending');
         setState((s) => {
           const exists = s.transfers.some((t) => t.id === fetched.id);
@@ -76,7 +48,7 @@ export default function QRDisplayScreen({ navigation, route }) {
           };
         });
       } catch (_error) {
-        if (!cancelled) return;
+        // Ignore fetch failures and keep local transfer data.
       }
     };
 
@@ -86,6 +58,11 @@ export default function QRDisplayScreen({ navigation, route }) {
       cancelled = true;
     };
   }, [transferId]);
+
+  useEffect(() => {
+    if (!transfer) return;
+    setQrPayload(buildTransferQrPayload(transfer));
+  }, [transfer]);
 
   useEffect(() => {
     if (status === 'Acknowledged') return;
@@ -98,7 +75,9 @@ export default function QRDisplayScreen({ navigation, route }) {
 
   const handleShare = async () => {
     try {
-      await Share.share({ message: `MediRelay transfer: https://${shortLink}` });
+      await Share.share({
+        message: `MediRelay transfer: https://${shortLink}`,
+      });
     } catch (_) {}
   };
 
@@ -142,9 +121,34 @@ export default function QRDisplayScreen({ navigation, route }) {
 
         {/* QR Code */}
         <View style={[styles.qrCard, shadow.md]}>
-          <QRPlaceholder value={transferId} />
+          <View style={styles.qrBackdrop}>
+            <View style={[styles.qrOrb, styles.qrOrbTop]} />
+            <View style={[styles.qrOrb, styles.qrOrbBottom]} />
+
+            <View style={styles.qrFrame}>
+              <View style={[styles.frameCorner, styles.frameCornerTL]} />
+              <View style={[styles.frameCorner, styles.frameCornerTR]} />
+              <View style={[styles.frameCorner, styles.frameCornerBL]} />
+              <View style={[styles.frameCorner, styles.frameCornerBR]} />
+
+              <View style={styles.qrBox}>
+                <QRCode
+                  value={qrPayload || String(transferId || '')}
+                  size={228}
+                  backgroundColor={colors.white}
+                  color={colors.onSurface}
+                  ecl="L"
+                />
+              </View>
+            </View>
+
+            <View style={styles.offlineReadyPill}>
+              <AppIcon name="check" size={13} color="#1a6640" />
+              <Text style={[typography.labelMd, { color: '#1a6640', marginLeft: spacing[1] }]}>Offline Ready</Text>
+            </View>
+          </View>
           <Text style={[typography.labelSm, { color: colors.outline, marginTop: spacing[4], textAlign: 'center' }]}>
-            Scan to receive patient record
+            Scan in MediRelay to open transfer offline
           </Text>
         </View>
 
@@ -219,19 +223,83 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: spacing[4],
   },
+  qrBackdrop: {
+    width: '100%',
+    borderRadius: radius.lg,
+    paddingVertical: spacing[5],
+    paddingHorizontal: spacing[4],
+    alignItems: 'center',
+    backgroundColor: '#f4f8f6',
+    borderWidth: 1,
+    borderColor: '#e1ebe6',
+    overflow: 'hidden',
+  },
+  qrOrb: {
+    position: 'absolute',
+    width: 130,
+    height: 130,
+    borderRadius: 65,
+    backgroundColor: '#e6f3ed',
+  },
+  qrOrbTop: {
+    top: -55,
+    right: -35,
+  },
+  qrOrbBottom: {
+    bottom: -60,
+    left: -40,
+  },
+  qrFrame: {
+    position: 'relative',
+    borderRadius: radius.md,
+    padding: spacing[2],
+    backgroundColor: '#dbe8e1',
+    marginBottom: spacing[4],
+  },
+  frameCorner: {
+    position: 'absolute',
+    width: 18,
+    height: 18,
+    borderColor: colors.primary,
+    zIndex: 2,
+  },
+  frameCornerTL: {
+    top: -2,
+    left: -2,
+    borderTopWidth: 2,
+    borderLeftWidth: 2,
+  },
+  frameCornerTR: {
+    top: -2,
+    right: -2,
+    borderTopWidth: 2,
+    borderRightWidth: 2,
+  },
+  frameCornerBL: {
+    bottom: -2,
+    left: -2,
+    borderBottomWidth: 2,
+    borderLeftWidth: 2,
+  },
+  frameCornerBR: {
+    bottom: -2,
+    right: -2,
+    borderBottomWidth: 2,
+    borderRightWidth: 2,
+  },
   qrBox: {
-    padding: spacing[4],
+    padding: spacing[3],
     backgroundColor: colors.white,
     borderRadius: radius.md,
     alignItems: 'center',
   },
-  qrRow: { flexDirection: 'row' },
-  qrCell: { width: 32, height: 32, margin: 1, borderRadius: 2 },
-  qrLabel: {
-    marginTop: spacing[2],
-    fontSize: 9,
-    color: colors.outline,
-    letterSpacing: 1,
+  offlineReadyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#dff2e7',
+    borderRadius: radius.full,
+    paddingHorizontal: spacing[3],
+    paddingVertical: spacing[1.5],
   },
   linkRow: {
     flexDirection: 'row', alignItems: 'center',

@@ -11,6 +11,7 @@ import { ConditionChip, AllergyChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { setState, getState } from '../store';
 import { buildPatientCreatePayload, createPatient } from '../api/patients';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 const BLOOD_GROUPS = ['O+', 'O-', 'B+', 'B-', 'A+', 'A-', 'AB+', 'AB-'];
 const RELATIONS = ['Spouse', 'Parent', 'Child', 'Sibling', 'Friend', 'Other'];
@@ -82,7 +83,7 @@ export default function PatientRegistrationScreen({ navigation }) {
 
   const handleSave = async () => {
     if (!validate()) return;
-    const doctorId = getState()?.doctor?.userId;
+    const doctorId = getState()?.doctor?.userId || await getStoredDoctorId();
 
     if (!doctorId) {
       setErrors((prev) => ({ ...prev, save: 'Login required. Please login again.' }));

@@ -10,6 +10,7 @@ import { PrimaryButton } from '../components/Buttons';
 import { AppIcon } from '../components/AppIcon';
 import { getState, setState, useStore } from '../store';
 import { getPatientById } from '../api/patients';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 export default function PatientProfileScreen({ navigation, route }) {
   const { patientId } = route.params;
@@ -18,12 +19,13 @@ export default function PatientProfileScreen({ navigation, route }) {
   const [patient, setPatient] = useState(localPatient || null);
 
   useEffect(() => {
-    const doctorId = doctor?.userId || getState()?.doctor?.userId;
-    if (!doctorId || !patientId) return;
+    if (!patientId) return;
 
     let cancelled = false;
     const load = async () => {
       try {
+        const doctorId = doctor?.userId || getState()?.doctor?.userId || await getStoredDoctorId();
+        if (!doctorId) return;
         const fetched = await getPatientById(patientId, doctorId);
         if (cancelled) return;
         setPatient(fetched);

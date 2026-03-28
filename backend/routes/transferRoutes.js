@@ -1,11 +1,17 @@
 const express = require("express");
 const mongoose = require("mongoose");
 const router = express.Router();
-
 const Transfer = require("../models/transferRecord.js");
 const Patient = require("../models/PatientModel.js");
 
 const BASE_URL = process.env.BACKEND_URL || "http://localhost:8080";
+
+function buildQrPayload(transfer) {
+    return JSON.stringify({
+        type: "medirelay.transfer.v1",
+        transfer
+    });
+}
 
 // ==============================
 // 🆕 Create Transfer (Full Data, No Draft)
@@ -74,10 +80,14 @@ router.post("/", async (req, res) => {
             status: "submitted" // directly submitted
         });
 
+        const transferJson = transfer.toObject();
+        const qrPayload = buildQrPayload(transferJson);
+
         res.status(201).json({
             success: true,
-            data: transfer,
-            link: `${BASE_URL}/api/v1/transfers/share/${shareId}`
+            data: transferJson,
+            link: `${BASE_URL}/api/v1/transfers/share/${shareId}`,
+            qrPayload
         });
 
     } catch (error) {

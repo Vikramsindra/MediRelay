@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Modal,
@@ -10,13 +10,64 @@ import { SeverityBadge, SectionLabel } from '../components/Badges';
 import { PrimaryButton, ToggleGroup } from '../components/Buttons';
 import { LabeledInput } from '../components/Inputs';
 import { AppIcon } from '../components/AppIcon';
-import { getState, setState } from '../store';
+import { getState, setState, useStore } from '../store';
+import { getTransferById, getTransferByShareId } from '../api/transfers';
 
 export default function RecordViewerScreen({ navigation, route }) {
-  const { transferId } = route.params ?? {};
-  const state = getState();
-  const transfer = state.transfers.find((t) => t.id === transferId) ?? state.transfers[0];
-  const patient = state.patients.find((p) => p.id === transfer?.patientId) ?? state.patients[0];
+  const { transferId, transferShareId, transferPayload } = route.params ?? {};
+  const state = useStore();
+  const [transfer, setTransfer] = useState(
+    transferPayload || state.transfers.find((t) => t.id === transferId) || null,
+  );
+
+  useEffect(() => {
+    if (transferPayload) {
+      setState((s) => {
+        const exists = s.transfers.some((t) => t.id === transferPayload.id);
+        return {
+          ...s,
+          transfers: exists
+            ? s.transfers.map((t) => (t.id === transferPayload.id ? transferPayload : t))
+            : [transferPayload, ...s.transfers],
+        };
+      });
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadTransfer = async () => {
+      if (!transferId && !transferShareId) return;
+      try {
+        const fetched = transferShareId
+          ? await getTransferByShareId(transferShareId)
+          : await getTransferById(transferId);
+        if (cancelled) return;
+        setTransfer(fetched);
+        setState((s) => {
+          const exists = s.transfers.some((t) => t.id === fetched.id);
+          return {
+            ...s,
+            transfers: exists
+              ? s.transfers.map((t) => (t.id === fetched.id ? fetched : t))
+              : [fetched, ...s.transfers],
+          };
+        });
+      } catch (_error) {
+        // Ignore and keep best-effort local state.
+      }
+    };
+
+    loadTransfer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [transferId, transferShareId, transferPayload]);
+
+  const patient = state.patients.find((p) => p.id === transfer?.patientId)
+    || transfer?.patientSnapshot
+    || null;
 
   const [showAckPanel, setShowAckPanel] = useState(false);
   const [arrivalCondition, setArrivalCondition] = useState('');
@@ -183,10 +234,10 @@ export default function RecordViewerScreen({ navigation, route }) {
         <SectionLabel style={{ marginTop: spacing[5] }}>Sent By</SectionLabel>
         <View style={styles.senderCard}>
           <Text style={[typography.titleSm, { color: colors.onSurface }]}>
-            {state.doctor?.name ?? 'Unknown Doctor'}
+            {transfer?.doctorName || 'Unknown Doctor'}
           </Text>
           <Text style={[typography.bodySm, { color: colors.outline }]}>
-            {state.doctor?.hospital}
+            {transfer?.from || 'Unknown Hospital'}
           </Text>
         </View>
 

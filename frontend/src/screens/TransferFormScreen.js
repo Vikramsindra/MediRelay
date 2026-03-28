@@ -11,6 +11,8 @@ import { MedCard } from '../components/Cards';
 import { ConditionChip } from '../components/Badges';
 import { AppIcon } from '../components/AppIcon';
 import { getState, setState } from '../store';
+import { createTransfer } from '../api/transfers';
+import { getStoredDoctorId } from '../storage/authStorage';
 
 const CONDITION_CATEGORIES = [
   { label: 'Cardiac' },
@@ -35,7 +37,8 @@ const TRANSFER_REASONS = {
 };
 
 const INVESTIGATIONS = ['ECG', 'CBC', 'LFT', 'KFT', 'CT', 'MRI', 'Culture', 'Echo', 'Troponin', 'Other'];
-const TRANSFER_MODES = ['Ambulance', 'Air', 'Private'];
+const TRANSFER_MODES = ['Ambulance', 'Air', 'Private Vehicle'];
+const MED_ROUTES = ['Oral', 'IV', 'IM'];
 
 const STEPS = ['Situation', 'Vitals', 'Condition', 'Medications', 'Summary'];
 
@@ -56,6 +59,14 @@ function StepHeader({ label }) {
       {label}
     </Text>
   );
+}
+
+function normalizeMedicationRoute(route) {
+  const value = String(route || '').trim().toLowerCase();
+  if (value === 'oral') return 'Oral';
+  if (value === 'iv') return 'IV';
+  if (value === 'im') return 'IM';
+  return '';
 }
 
 export default function TransferFormScreen({ navigation, route }) {
@@ -125,12 +136,14 @@ export default function TransferFormScreen({ navigation, route }) {
 
   // Section 4 – Medications
   const [activeMeds, setActiveMeds] = useState(patient?.medications ?? []);
+  const [medDraft, setMedDraft] = useState({ name: '', dose: '', route: '', frequency: '' });
 
   // Section 5 – Summary
   const [summary, setSummary] = useState('');
   const [investigations, setInvestigations] = useState([]);
   const [receivingHospital, setReceivingHospital] = useState('');
   const [transferMode, setTransferMode] = useState('');
+  const [submitError, setSubmitError] = useState('');
 
   const isNeuro = category === 'Neuro';
   const isDiabetic = patient?.conditions?.includes('Diabetes');
@@ -153,52 +166,100 @@ export default function TransferFormScreen({ navigation, route }) {
     else handleSubmit();
   };
 
-  const handleSubmit = () => {
+  const handleAddMedication = () => {
+    const name = String(medDraft.name || '').trim();
+    const dose = String(medDraft.dose || '').trim();
+    const route = normalizeMedicationRoute(medDraft.route);
+    const frequency = String(medDraft.frequency || '').trim();
+
+    if (!name || !dose || !route) {
+      setSubmitError('Medication name, dose, and route are required.');
+      return;
+    }
+
+    setActiveMeds((prev) => [
+      ...prev,
+      {
+        name,
+        dose,
+        route,
+        frequency,
+        mustNotStop: false,
+      },
+    ]);
+
+    setMedDraft({ name: '', dose: '', route: '', frequency: '' });
+    setSubmitError('');
+  };
+
+  const handleSubmit = async () => {
     // Check drug conflicts
     const allergenNames = patient?.allergies?.map((a) => a.allergen.toLowerCase()) ?? [];
     const conflict = activeMeds.find((m) =>
       allergenNames.some((al) => m.name.toLowerCase().includes(al.slice(0, 5))),
     );
 
-    const transferId = 'TR-' + Date.now();
-    const newTransfer = {
-      id: transferId,
-      patientId: patient.id,
-      patientName: patient.name,
-      direction: 'sent',
-      conditionCategory: category,
-      severity,
-      diagnosis: chiefComplaint,
-      to: receivingHospital,
-      status: 'Pending',
-      createdAt: new Date().toISOString(),
-      vitals: { bpSys, bpDia, hr, spo2, temp, rr, gcs: isNeuro || category === 'Trauma' ? gcs : null, bsl: isDiabetic ? bsl : null },
-      summary,
-      investigations,
-      transferMode,
-      activeMeds,
-      conditionDetails: {
-        cardiac: category === 'Cardiac' ? { onsetTime: cardiacOnsetTime, ecgDone: cardiacEcgDone, ecgFindings: cardiacEcgFindings, thrombolysis: cardiacThrombolysis } : null,
-        neuro: category === 'Neuro' ? { onsetTime: neuroOnsetTime, strokeType: neuroStrokeType, ctDone: neuroCtDone, ctFindings: neuroCtFindings, seizureActive: neuroSeizureActive } : null,
-        obstetric: category === 'Obstetric' ? { gestationalAge: obsGestationalAge, rhFactor: obsRhFactor, fetalHr: obsFetalHr, highRiskReason: obsHighRiskReason } : null,
-        respiratory: category === 'Respiratory' ? { oxygenRequired: respOxygenRequired, onVentilator: respOnVentilator, ventilatorSettings: respVentilatorSettings } : null,
-        renal: category === 'Renal' ? { urineOutput: renalUrineOutput, onDialysis: renalOnDialysis, creatinine: renalCreatinine } : null,
-        trauma: category === 'Trauma' ? { mechanism: traumaMechanism, majorInjuries: traumaMajorInjuries, surgeryNeeded: traumaSurgeryNeeded } : null,
-        neonatal: category === 'Neonatal' ? { gestationalAge: neoGestationalAge, birthWeight: neoBirthWeight, apgarScore: neoApgarScore, deliveryType: neoDeliveryType } : null,
-        other: category === 'Other' ? { clinicalDetails: otherClinicalDetails } : null,
-      },
-    };
+    try {
+      setSubmitError('');
 
-    setState((s) => ({
-      ...s,
-      transfers: [newTransfer, ...s.transfers],
-      draftTransfer: newTransfer,
-    }));
+      const doctorId = state?.doctor?.userId || await getStoredDoctorId();
+      const doctorName = state?.doctor?.name || 'Doctor';
+      const sendingHospital = state?.doctor?.hospital || 'Unknown Hospital';
 
-    if (conflict) {
-      navigation.navigate('DrugConflict', { transferId, conflict, allergen: conflict.name });
-    } else {
-      navigation.navigate('QRDisplay', { transferId });
+      if (!doctorId) {
+        setSubmitError('Login required. Please login again.');
+        return;
+      }
+
+      if (!patient?.id) {
+        setSubmitError('Patient not found. Please reload and try again.');
+        return;
+      }
+
+      const { transfer, qrPayload } = await createTransfer({
+        patientId: patient.id,
+        sendingHospital,
+        receivingHospital,
+        doctorName,
+        chiefComplaint,
+        conditionCategory: category,
+        severity,
+        reasonForTransfer: transferReason || 'Higher care',
+        vitals: {
+          bp: bpSys && bpDia ? `${bpSys}/${bpDia}` : '',
+          hr: hr ? Number(hr) : undefined,
+          spo2: spo2 ? Number(spo2) : undefined,
+          temp: temp ? Number(temp) : undefined,
+          rr: rr ? Number(rr) : undefined,
+          gcs: gcs ? Number(gcs) : undefined,
+          bloodSugar: bsl ? Number(bsl) : undefined,
+        },
+        activeMedications: activeMeds.map((med) => ({
+          name: String(med?.name || '').trim(),
+          dose: String(med?.dose || '').trim(),
+          route: normalizeMedicationRoute(med?.route),
+          frequency: String(med?.frequency || '').trim(),
+          mustNotStop: Boolean(med?.mustNotStop),
+          lastGivenAt: med?.lastGivenAt ? String(med.lastGivenAt).trim() : undefined,
+        })).filter((med) => med.name && med.dose && med.route),
+        clinicalSummary: summary,
+        pendingInvestigations: investigations,
+        modeOfTransfer: transferMode,
+      });
+
+      setState((s) => ({
+        ...s,
+        transfers: [transfer, ...s.transfers],
+        draftTransfer: transfer,
+      }));
+
+      if (conflict) {
+        navigation.navigate('DrugConflict', { transferId: transfer.id, conflict, allergen: conflict.name });
+      } else {
+        navigation.navigate('QRDisplay', { transferId: transfer.id, qrPayload });
+      }
+    } catch (error) {
+      setSubmitError(error?.message || 'Failed to create transfer');
     }
   };
 
@@ -469,7 +530,32 @@ export default function TransferFormScreen({ navigation, route }) {
                   </TouchableOpacity>
                 </View>
               ))}
-              <SecondaryButton label="+ Add Medication" onPress={() => {}} />
+
+              <LabeledInput
+                label="Drug Name"
+                value={medDraft.name}
+                onChangeText={(text) => setMedDraft((prev) => ({ ...prev, name: text }))}
+                placeholder="e.g. Aspirin"
+              />
+              <LabeledInput
+                label="Dose"
+                value={medDraft.dose}
+                onChangeText={(text) => setMedDraft((prev) => ({ ...prev, dose: text }))}
+                placeholder="e.g. 75 mg"
+              />
+              <SimpleDropdown
+                label="Route"
+                options={MED_ROUTES}
+                value={medDraft.route}
+                onChange={(value) => setMedDraft((prev) => ({ ...prev, route: value }))}
+              />
+              <LabeledInput
+                label="Frequency"
+                value={medDraft.frequency}
+                onChangeText={(text) => setMedDraft((prev) => ({ ...prev, frequency: text }))}
+                placeholder="e.g. Once daily"
+              />
+              <SecondaryButton label="+ Add Medication" onPress={handleAddMedication} />
             </View>
           )}
 
@@ -528,6 +614,12 @@ export default function TransferFormScreen({ navigation, route }) {
           )}
 
           <View style={{ height: spacing[4] }} />
+
+          {submitError ? (
+            <Text style={[typography.bodySm, { color: colors.error, marginBottom: spacing[3] }]}>
+              {submitError}
+            </Text>
+          ) : null}
 
           <PrimaryButton
             label={currentStep < STEPS.length - 1 ? `Next: ${STEPS[currentStep + 1]}` : 'Submit & Generate QR'}
