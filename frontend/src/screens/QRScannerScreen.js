@@ -3,7 +3,8 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, CameraView, useCameraPermissions } from 'expo-camera';
+import * as ImagePicker from 'expo-image-picker';
 import { colors, typography, spacing, radius } from '../theme';
 import { LabeledInput } from '../components/Inputs';
 import { PrimaryButton } from '../components/Buttons';
@@ -18,6 +19,47 @@ export default function QRScannerScreen({ navigation, route }) {
   const [lastScannedData, setLastScannedData] = useState('');
   const [scanError, setScanError] = useState('');
 
+  const handleUploadQrFromDevice = async () => {
+    try {
+      setScanError('');
+
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) {
+        setScanError('Media library permission is required to pick a QR image.');
+        return;
+      }
+
+      const picked = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: false,
+        quality: 1,
+      });
+
+      if (picked.canceled || !picked.assets?.[0]?.uri) {
+        return;
+      }
+
+      let scanResults = [];
+      try {
+        scanResults = await Camera.scanFromURLAsync(picked.assets[0].uri, ['qr']);
+      } catch (_error) {
+        scanResults = await Camera.scanFromURLAsync(picked.assets[0].uri, { barcodeTypes: ['qr'] });
+      }
+
+      const decodedValue = String(scanResults?.[0]?.data || '').trim();
+      if (!decodedValue) {
+        setScanError('No QR code found in selected image.');
+        return;
+      }
+
+      setLastScannedData(decodedValue);
+      const opened = openScannedPayload(decodedValue);
+      if (!opened) setLastScannedData('');
+    } catch (_error) {
+      setScanError('Could not read QR from image. Please try a clearer image.');
+    }
+  };
+
   const openScannedPayload = (rawValue) => {
     const scannedText = String(rawValue || '').trim();
     if (!scannedText) {
@@ -27,11 +69,27 @@ export default function QRScannerScreen({ navigation, route }) {
 
     const transferFromQr = parseTransferQrPayload(scannedText);
     if (transferFromQr) {
-      const mappedTransfer = transferFromQr?.patientName && transferFromQr?.id
-        ? transferFromQr
-        : mapTransferFromApi(transferFromQr);
+      const looksLikeApiTransfer = Boolean(
+        transferFromQr?._id
+        || transferFromQr?.patient
+        || transferFromQr?.activeMedications
+        || transferFromQr?.pendingInvestigations,
+      );
+      const mappedTransfer = looksLikeApiTransfer
+        ? mapTransferFromApi(transferFromQr)
+        : transferFromQr;
+
+      if (__DEV__) {
+        console.log('[QRScanner] Decoded transfer payload', {
+          transferId: mappedTransfer?.id,
+          shareId: mappedTransfer?.shareId,
+          vitals: mappedTransfer?.vitals,
+        });
+      }
+
       navigation.navigate('RecordViewer', {
-        transferId: mappedTransfer.id,
+        transferId: mappedTransfer?.id || undefined,
+        transferShareId: mappedTransfer.shareId || undefined,
         transferPayload: {
           ...mappedTransfer,
           direction: 'received',
@@ -127,6 +185,9 @@ export default function QRScannerScreen({ navigation, route }) {
           <Text style={[typography.bodySm, { color: 'rgba(255,255,255,0.6)', marginTop: spacing[2], textAlign: 'center' }]}>
             Scanner is live. Opens transfer automatically after decode.
           </Text>
+          <TouchableOpacity style={styles.uploadQrBtn} onPress={handleUploadQrFromDevice} activeOpacity={0.8}>
+            <Text style={[typography.labelMd, { color: '#7effc5' }]}>Upload QR from device</Text>
+          </TouchableOpacity>
           {lastScannedData ? (
             <View style={styles.detectedRow}>
               <AppIcon name="check" size={16} color="#7effc5" />
@@ -218,5 +279,14 @@ const styles = StyleSheet.create({
   },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   detectedRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing[4] },
+  uploadQrBtn: {
+    marginTop: spacing[5],
+    paddingHorizontal: spacing[4],
+    paddingVertical: spacing[2.5],
+    borderWidth: 1,
+    borderColor: '#7effc5',
+    borderRadius: radius.full,
+    backgroundColor: 'rgba(126,255,197,0.08)',
+  },
   switchBtn: { paddingVertical: spacing[4] },
 });

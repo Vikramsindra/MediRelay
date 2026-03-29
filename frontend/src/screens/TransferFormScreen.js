@@ -85,6 +85,18 @@ function hasText(value) {
   return String(value || '').trim().length > 0;
 }
 
+function toNumericVital(value) {
+  const text = String(value ?? '').trim();
+  if (!text) return undefined;
+  const normalized = text.replace(',', '.');
+  const direct = Number(normalized);
+  if (Number.isFinite(direct)) return direct;
+  const match = normalized.match(/-?\d+(?:\.\d+)?/);
+  if (!match) return undefined;
+  const parsed = Number(match[0]);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 export default function TransferFormScreen({ navigation, route }) {
   const { patientId } = route.params ?? {};
   const state = getState();
@@ -245,12 +257,12 @@ export default function TransferFormScreen({ navigation, route }) {
         reasonForTransfer: transferReason || 'Higher care',
         vitals: {
           bp: bpSys && bpDia ? `${bpSys}/${bpDia}` : '',
-          hr: hr ? Number(hr) : undefined,
-          spo2: spo2 ? Number(spo2) : undefined,
-          temp: temp ? Number(temp) : undefined,
-          rr: rr ? Number(rr) : undefined,
-          gcs: gcs ? Number(gcs) : undefined,
-          bloodSugar: bsl ? Number(bsl) : undefined,
+          hr: toNumericVital(hr),
+          spo2: toNumericVital(spo2),
+          temp: toNumericVital(temp),
+          rr: toNumericVital(rr),
+          gcs: toNumericVital(gcs),
+          bloodSugar: toNumericVital(bsl),
         },
         activeMedications: activeMeds.map((med) => ({
           name: String(med?.name || '').trim(),
@@ -293,7 +305,7 @@ export default function TransferFormScreen({ navigation, route }) {
       }
 
       const picked = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: false,
         quality: 1,
       });

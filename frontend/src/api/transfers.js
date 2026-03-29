@@ -184,17 +184,118 @@ async function getJsonOrThrow(response, fallbackMessage) {
 function mapTransferStatus(status) {
   const normalized = String(status || '').toLowerCase();
   if (normalized === 'acknowledged') return 'Acknowledged';
+  if (normalized === 'viewed') return 'Viewed';
   if (normalized === 'submitted') return 'Pending';
   if (normalized === 'draft') return 'Pending';
+  if (normalized === 'pending') return 'Pending';
   return 'Pending';
 }
 
+function normalizeVitals(sourceVitals = {}) {
+  const source = sourceVitals && typeof sourceVitals === 'object' ? sourceVitals : {};
+  const toVitalValue = (value) => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'number') return Number.isFinite(value) ? value : '';
+    const text = String(value).trim();
+    if (!text) return '';
+    const normalized = text.replace(',', '.');
+    const direct = Number(normalized);
+    if (Number.isFinite(direct)) return direct;
+    const match = normalized.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return text;
+    const parsed = Number(match[0]);
+    return Number.isFinite(parsed) ? parsed : text;
+  };
+
+  const bpText = String(source.bp || '').trim();
+  const bpSys = String(source.bpSys || source.systolic || '').trim();
+  const bpDia = String(source.bpDia || source.diastolic || '').trim();
+  const bpFromParts = bpSys && bpDia ? `${bpSys}/${bpDia}` : '';
+  const bpRaw = bpText || bpFromParts;
+  const [rawSys, rawDia] = bpRaw.includes('/') ? bpRaw.split('/') : ['', ''];
+
+  return {
+    bpSys: String(rawSys || bpSys).trim(),
+    bpDia: String(rawDia || bpDia).trim(),
+    hr: toVitalValue(source.hr ?? source.heartRate),
+    spo2: toVitalValue(source.spo2 ?? source.oxygenSat ?? source.oxygenSaturation),
+    temp: toVitalValue(source.temp ?? source.temperature),
+    rr: toVitalValue(source.rr ?? source.respiratoryRate ?? source.respRate),
+    gcs: toVitalValue(source.gcs),
+    bsl: toVitalValue(source.bloodSugar ?? source.bsl ?? source.glucose),
+  };
+}
+
+function normalizePatientSnapshot(rawTransfer) {
+  const snapshot = rawTransfer?.patientSnapshot || {};
+  const patient = rawTransfer?.patient || {};
+
+  const mapped = {
+    id: String(
+      patient?._id
+      || patient?.id
+      || snapshot?.id
+      || rawTransfer?.patientId
+      || '',
+    ).trim(),
+    name: String(
+      patient?.fullName
+      || patient?.name
+      || snapshot?.name
+      || rawTransfer?.patientName
+      || '',
+    ).trim(),
+    abhaId: String(patient?.abhaId || snapshot?.abhaId || '').trim(),
+    abhaRegistration: Boolean(patient?.abhaRegistration ?? snapshot?.abhaRegistration),
+    age: Number(patient?.age ?? snapshot?.age ?? 0),
+    sex: String(patient?.sex || snapshot?.sex || '').trim(),
+    bloodGroup: String(patient?.bloodGroup || snapshot?.bloodGroup || '').trim(),
+    phone: String(patient?.phone || snapshot?.phone || '').trim(),
+    allergies: Array.isArray(patient?.allergies)
+      ? patient.allergies
+      : (Array.isArray(snapshot?.allergies) ? snapshot.allergies : []),
+    medications: Array.isArray(patient?.permanentMedications)
+      ? patient.permanentMedications.map((m) => ({
+        name: String(m?.name || '').trim(),
+        dose: String(m?.dose || '').trim(),
+        route: String(m?.route || '').trim(),
+        frequency: String(m?.frequency || '').trim(),
+        mustNotStop: Boolean(m?.mustNotStop),
+      }))
+      : (Array.isArray(snapshot?.medications) ? snapshot.medications : []),
+  };
+
+  const hasSnapshotData = Boolean(
+    mapped.id
+    || mapped.name
+    || mapped.abhaId
+    || mapped.age
+    || mapped.sex
+    || mapped.bloodGroup
+    || mapped.phone
+    || mapped.allergies.length
+    || mapped.medications.length,
+  );
+
+  return hasSnapshotData ? mapped : null;
+}
+
 export function mapTransferFromApi(rawTransfer) {
-  const patientName = String(rawTransfer?.patient?.fullName || '').trim();
-  const patientId = String(rawTransfer?.patientId || rawTransfer?.patient?._id || '');
+  const patientSnapshot = normalizePatientSnapshot(rawTransfer || {});
+  const patientName = String(
+    patientSnapshot?.name
+    || rawTransfer?.patientName
+    || rawTransfer?.patient?.fullName
+    || '',
+  ).trim();
+  const rawPatientId = rawTransfer?.patientId;
+  const patientId = String(
+    typeof rawPatientId === 'object' && rawPatientId !== null
+      ? (rawPatientId?._id || rawPatientId?.id || '')
+      : (rawPatientId || rawTransfer?.patient?._id || patientSnapshot?.id || ''),
+  ).trim();
   const createdAt = rawTransfer?.createdAt || rawTransfer?.timestamp || new Date().toISOString();
-  const bpRaw = String(rawTransfer?.vitals?.bp || '').trim();
-  const [bpSys, bpDia] = bpRaw.includes('/') ? bpRaw.split('/') : ['', ''];
+  const vitals = normalizeVitals(rawTransfer?.vitals || {});
 
   return {
     id: String(rawTransfer?._id || rawTransfer?.id || `TR-${Date.now()}`),
@@ -203,53 +304,23 @@ export function mapTransferFromApi(rawTransfer) {
     direction: 'sent',
     conditionCategory: String(rawTransfer?.conditionCategory || '').trim(),
     severity: String(rawTransfer?.severity || '').trim(),
-    diagnosis: String(rawTransfer?.chiefComplaint || '').trim(),
-    to: String(rawTransfer?.receivingHospital || '').trim(),
-    from: String(rawTransfer?.sendingHospital || '').trim(),
+    diagnosis: String(rawTransfer?.chiefComplaint || rawTransfer?.diagnosis || '').trim(),
+    to: String(rawTransfer?.receivingHospital || rawTransfer?.to || '').trim(),
+    from: String(rawTransfer?.sendingHospital || rawTransfer?.from || '').trim(),
     status: mapTransferStatus(rawTransfer?.status),
     createdAt,
-    vitals: {
-      bpSys: String(bpSys || '').trim(),
-      bpDia: String(bpDia || '').trim(),
-      hr: rawTransfer?.vitals?.hr || '',
-      spo2: rawTransfer?.vitals?.spo2 || '',
-      temp: rawTransfer?.vitals?.temp || '',
-      rr: rawTransfer?.vitals?.rr || '',
-      gcs: rawTransfer?.vitals?.gcs || '',
-      bsl: rawTransfer?.vitals?.bloodSugar || '',
-    },
-    summary: String(rawTransfer?.clinicalSummary || '').trim(),
+    vitals,
+    summary: String(rawTransfer?.clinicalSummary || rawTransfer?.summary || '').trim(),
     investigations: Array.isArray(rawTransfer?.pendingInvestigations)
       ? rawTransfer.pendingInvestigations
-      : [],
-    transferMode: String(rawTransfer?.modeOfTransfer || '').trim(),
+      : (Array.isArray(rawTransfer?.investigations) ? rawTransfer.investigations : []),
+    transferMode: String(rawTransfer?.modeOfTransfer || rawTransfer?.transferMode || '').trim(),
     doctorName: String(rawTransfer?.doctorName || '').trim(),
     activeMeds: Array.isArray(rawTransfer?.activeMedications)
       ? rawTransfer.activeMedications
-      : [],
+      : (Array.isArray(rawTransfer?.activeMeds) ? rawTransfer.activeMeds : []),
     shareId: String(rawTransfer?.shareId || ''),
-    patientSnapshot: rawTransfer?.patient
-      ? {
-        id: String(rawTransfer?.patient?._id || rawTransfer?.patientId || ''),
-        name: String(rawTransfer?.patient?.fullName || '').trim(),
-        abhaId: String(rawTransfer?.patient?.abhaId || '').trim(),
-        abhaRegistration: Boolean(rawTransfer?.patient?.abhaRegistration),
-        age: Number(rawTransfer?.patient?.age || 0),
-        sex: String(rawTransfer?.patient?.sex || '').trim(),
-        bloodGroup: String(rawTransfer?.patient?.bloodGroup || '').trim(),
-        phone: String(rawTransfer?.patient?.phone || '').trim(),
-        allergies: Array.isArray(rawTransfer?.patient?.allergies) ? rawTransfer.patient.allergies : [],
-        medications: Array.isArray(rawTransfer?.patient?.permanentMedications)
-          ? rawTransfer.patient.permanentMedications.map((m) => ({
-            name: String(m?.name || '').trim(),
-            dose: String(m?.dose || '').trim(),
-            route: String(m?.route || '').trim(),
-            frequency: String(m?.frequency || '').trim(),
-            mustNotStop: false,
-          }))
-          : [],
-      }
-      : null,
+    patientSnapshot,
   };
 }
 

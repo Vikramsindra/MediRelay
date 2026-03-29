@@ -35,6 +35,7 @@ export default function RecordViewerScreen({ navigation, route }) {
         ...transferPayload,
         direction: transferPayload.direction || effectiveDirection,
       };
+      setTransfer(payloadWithDirection);
       setState((s) => {
         const exists = s.transfers.some((t) => t.id === payloadWithDirection.id);
         return {
@@ -44,22 +45,47 @@ export default function RecordViewerScreen({ navigation, route }) {
             : [payloadWithDirection, ...s.transfers],
         };
       });
-      return;
     }
 
     let cancelled = false;
+    const candidateShareId = String(transferShareId || transferPayload?.shareId || '').trim();
+    const candidateTransferId = String(transferId || transferPayload?.id || '').trim();
 
     const loadTransfer = async () => {
-      if (!transferId && !transferShareId) return;
+      if (!candidateTransferId && !candidateShareId) return;
       try {
-        const fetched = transferShareId
-          ? await getTransferByShareId(transferShareId)
-          : await getTransferById(transferId);
+        let fetched = null;
+        let source = '';
+
+        if (candidateShareId) {
+          try {
+            fetched = await getTransferByShareId(candidateShareId);
+            source = 'shareId';
+          } catch (_shareError) {
+            fetched = null;
+          }
+        }
+
+        if (!fetched && candidateTransferId) {
+          fetched = await getTransferById(candidateTransferId);
+          source = 'transferId';
+        }
+
         const fetchedWithDirection = {
           ...fetched,
           direction: transfer?.direction || effectiveDirection,
         };
         if (cancelled) return;
+
+        if (__DEV__) {
+          console.log('[RecordViewer] Hydrated transfer from server', {
+            source,
+            transferId: fetchedWithDirection?.id,
+            shareId: fetchedWithDirection?.shareId,
+            vitals: fetchedWithDirection?.vitals,
+          });
+        }
+
         setTransfer(fetchedWithDirection);
         setState((s) => {
           const exists = s.transfers.some((t) => t.id === fetchedWithDirection.id);
@@ -70,8 +96,15 @@ export default function RecordViewerScreen({ navigation, route }) {
               : [fetchedWithDirection, ...s.transfers],
           };
         });
-      } catch (_error) {
-        // Ignore and keep best-effort local state.
+      } catch (error) {
+        if (__DEV__) {
+          console.log('[RecordViewer] Transfer hydration failed; using payload fallback', {
+            candidateTransferId,
+            candidateShareId,
+            payloadVitals: transferPayload?.vitals,
+            error: error?.message,
+          });
+        }
       }
     };
 
@@ -85,6 +118,17 @@ export default function RecordViewerScreen({ navigation, route }) {
   const patient = state.patients.find((p) => p.id === transfer?.patientId)
     || transfer?.patientSnapshot
     || null;
+  const displayPatient = patient || {
+    id: transfer?.patientId || '',
+    name: transfer?.patientName || 'Unknown Patient',
+    sex: '',
+    age: '',
+    bloodGroup: '',
+    phone: '',
+    abhaId: '',
+    allergies: [],
+    medications: [],
+  };
 
   const [showAckPanel, setShowAckPanel] = useState(false);
   const [arrivalCondition, setArrivalCondition] = useState('');
@@ -99,10 +143,11 @@ export default function RecordViewerScreen({ navigation, route }) {
   const [hasFetchedHistory, setHasFetchedHistory] = useState(false);
 
   const vitals = transfer?.vitals ?? {};
-  const mustNotStop = (transfer?.activeMeds ?? patient?.medications ?? []).filter((m) => m.mustNotStop);
-  const regularMeds = (transfer?.activeMeds ?? patient?.medications ?? []).filter((m) => !m.mustNotStop);
-  const hasAllergies = patient?.allergies?.length > 0;
-  const patientAbhaId = String(patient?.abhaId || transfer?.patientSnapshot?.abhaId || '').trim();
+  const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== '';
+  const mustNotStop = (transfer?.activeMeds ?? displayPatient?.medications ?? []).filter((m) => m.mustNotStop);
+  const regularMeds = (transfer?.activeMeds ?? displayPatient?.medications ?? []).filter((m) => !m.mustNotStop);
+  const hasAllergies = displayPatient?.allergies?.length > 0;
+  const patientAbhaId = String(displayPatient?.abhaId || transfer?.patientSnapshot?.abhaId || '').trim();
 
   const handleAcknowledge = async () => {
     if (!arrivalCondition) return;
@@ -171,9 +216,9 @@ export default function RecordViewerScreen({ navigation, route }) {
       const history = abhaForLookup
         ? await fetchMedicalHistoryByAbhaId(abhaForLookup)
         : await fetchMedicalHistoryForPatientProfile({
-          name: patient?.name || transfer?.patientName,
-          age: patient?.age,
-          phone: patient?.phone,
+          name: displayPatient?.name || transfer?.patientName,
+          age: displayPatient?.age,
+          phone: displayPatient?.phone,
         });
 
       setHistoryItems(history);
@@ -200,10 +245,12 @@ export default function RecordViewerScreen({ navigation, route }) {
           </TouchableOpacity>
           <View style={{ alignItems: 'center' }}>
             <Text style={[typography.titleMd, { color: colors.onSurface }]}>
-              {patient?.name} · {patient?.sex} · {patient?.age}y
+              {displayPatient?.name || 'Unknown Patient'}
+              {displayPatient?.sex ? ` · ${displayPatient.sex}` : ''}
+              {displayPatient?.age ? ` · ${displayPatient.age}y` : ''}
             </Text>
             <Text style={[typography.bodySm, { color: colors.outline }]}>
-              {patient?.bloodGroup} · From: {transfer?.from ?? 'Unknown'}
+              {displayPatient?.bloodGroup ? `${displayPatient.bloodGroup} · ` : ''}From: {transfer?.from ?? 'Unknown'}
             </Text>
           </View>
           <View style={{ width: 60 }} />
@@ -212,7 +259,7 @@ export default function RecordViewerScreen({ navigation, route }) {
         {/* Allergy card — ALWAYS shown */}
         {hasAllergies ? (
           <AlertCard iconName="warning" title="Allergies" variant="critical">
-            {patient.allergies.filter(a => a).map((a, i) => {
+            {displayPatient.allergies.filter((a) => a).map((a, i) => {
               let allergen = '';
               let reaction = '';
               
@@ -275,11 +322,11 @@ export default function RecordViewerScreen({ navigation, route }) {
         <SectionLabel>Vitals</SectionLabel>
         <View style={styles.vitalsGrid}>
           {[
-            { label: 'BP', value: vitals.bpSys && vitals.bpDia ? `${vitals.bpSys}/${vitals.bpDia}` : '—' },
-            { label: 'HR', value: vitals.hr ? `${vitals.hr} bpm` : '—' },
-            { label: 'SpO₂', value: vitals.spo2 ? `${vitals.spo2}%` : '—' },
-            { label: 'Temp', value: vitals.temp ? `${vitals.temp}°F` : '—' },
-            { label: 'RR', value: vitals.rr ? `${vitals.rr}/min` : '—' },
+            { label: 'BP', value: hasValue(vitals.bpSys) && hasValue(vitals.bpDia) ? `${vitals.bpSys}/${vitals.bpDia}` : '—' },
+            { label: 'HR', value: hasValue(vitals.hr) ? `${vitals.hr} bpm` : '—' },
+            { label: 'SpO₂', value: hasValue(vitals.spo2) ? `${vitals.spo2}%` : '—' },
+            { label: 'Temp', value: hasValue(vitals.temp) ? `${vitals.temp}°F` : '—' },
+            { label: 'RR', value: hasValue(vitals.rr) ? `${vitals.rr}/min` : '—' },
           ].map((v) => (
             <View key={v.label} style={styles.vitalCell}>
               <Text style={[typography.labelSm, { color: colors.outline }]}>{v.label}</Text>
