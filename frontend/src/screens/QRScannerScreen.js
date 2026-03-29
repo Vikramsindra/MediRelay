@@ -142,9 +142,6 @@ export default function QRScannerScreen({ navigation, route }) {
       ) : (
         /* Paste link mode */
         <View style={styles.pasteContainer}>
-          <View style={styles.pasteIconWrap}>
-            <AppIcon name="chevron-right" size={36} color={colors.primary} />
-          </View>
           <Text style={[typography.headlineSm, { color: colors.onSurface, marginBottom: spacing[5] }]}>
             Enter transfer link
           </Text>
@@ -221,6 +218,5 @@ const styles = StyleSheet.create({
   },
   backBtn: { flexDirection: 'row', alignItems: 'center' },
   detectedRow: { flexDirection: 'row', alignItems: 'center', marginTop: spacing[4] },
-  pasteIconWrap: { alignItems: 'center', marginBottom: spacing[4] },
   switchBtn: { paddingVertical: spacing[4] },
 });

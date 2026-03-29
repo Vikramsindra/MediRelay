@@ -1,8 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView,
   TouchableOpacity, Share,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import QRCode from 'react-native-qrcode-svg';
 import { colors, typography, spacing, radius, shadow } from '../theme';
@@ -25,6 +28,7 @@ export default function QRDisplayScreen({ navigation, route }) {
 
   const [status, setStatus] = useState(transfer?.status ?? 'Pending');
   const [linkCopied, setLinkCopied] = useState(false);
+  const qrCodeRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -68,15 +72,52 @@ export default function QRDisplayScreen({ navigation, route }) {
 
   const handleShare = async () => {
     try {
+      if (!qrCodeRef.current?.toDataURL) {
+        await Share.share({
+          message: `MediRelay transfer: https://${shortLink}`,
+        });
+        return;
+      }
+
+      const base64Png = await new Promise((resolve, reject) => {
+        qrCodeRef.current.toDataURL((data) => {
+          if (!data) {
+            reject(new Error('QR image generation failed'));
+            return;
+          }
+          resolve(data);
+        });
+      });
+
+      const fileUri = `${FileSystem.cacheDirectory}medirelay-qr-${transferId || Date.now()}.png`;
+      await FileSystem.writeAsStringAsync(fileUri, base64Png, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      const canShareFile = await Sharing.isAvailableAsync();
+      if (canShareFile) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share MediRelay QR',
+          UTI: 'public.png',
+        });
+        return;
+      }
+
       await Share.share({
         message: `MediRelay transfer: https://${shortLink}`,
       });
     } catch (_) {}
   };
 
-  const handleCopyLink = () => {
-    setLinkCopied(true);
-    setTimeout(() => setLinkCopied(false), 2000);
+  const handleCopyLink = async () => {
+    try {
+      await Clipboard.setStringAsync(`https://${shortLink}`);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (_) {
+      setLinkCopied(false);
+    }
   };
 
   const statusColor = {
@@ -126,6 +167,9 @@ export default function QRDisplayScreen({ navigation, route }) {
 
               <View style={styles.qrBox}>
                 <QRCode
+                  getRef={(ref) => {
+                    qrCodeRef.current = ref;
+                  }}
                   value={qrPayload || String(transferId || '')}
                   size={228}
                   backgroundColor={colors.white}
@@ -161,7 +205,6 @@ export default function QRDisplayScreen({ navigation, route }) {
         {/* Actions */}
         <View style={styles.actionsRow}>
           <SecondaryButton label="Share" onPress={handleShare} iconName="chevron-right" />
-          <SecondaryButton label="Print" onPress={() => {}} iconName="chevron-right" />
         </View>
 
         {/* Live status */}
