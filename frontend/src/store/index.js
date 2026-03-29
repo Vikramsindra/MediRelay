@@ -2,11 +2,19 @@
 // In production replace with Zustand / Redux / Context
 
 let _state = {
+  authUserType: 'doctor',
   doctor: {
     name: 'Dr. Aris Sharma',
     hospital: 'Apollo Hospital',
     phone: '9876543210',
     isLoggedIn: true,
+  },
+  patientProfile: {
+    name: 'Jordan M. Smith',
+    dob: 'May 12, 1988',
+    bloodType: 'O-Negative',
+    phone: '9876543210',
+    hospitalBrand: 'Vitality Care',
   },
   isOnline: true,
   patients: [

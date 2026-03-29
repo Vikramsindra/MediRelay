@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity,
   KeyboardAvoidingView, Platform, ScrollView, TextInput,
 } from 'react-native';
+import CountryPicker from 'react-native-country-picker-modal';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, typography, spacing, radius, shadow } from '../theme';
 import { OTPBoxes } from '../components/Inputs';
@@ -17,6 +18,9 @@ const SCREENS = {
   OTP_VERIFY: 'OTP_VERIFY',
   SET_PASSWORD: 'SET_PASSWORD',
 };
+
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://192.168.108.160:8080';
+
 export default function AuthScreen({ onAuth }) {
   const [screen, setScreen] = useState(SCREENS.ROLE_PICK);
   const [otpFlow, setOtpFlow] = useState('signup'); // signup | patient
@@ -32,8 +36,8 @@ export default function AuthScreen({ onAuth }) {
 
   // Signup details
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [hospital, setHospital] = useState('');
-  const [councilNo, setCouncilNo] = useState('');
 
   // Password setup
   const [signupPassword, setSignupPassword] = useState('');
@@ -45,16 +49,24 @@ export default function AuthScreen({ onAuth }) {
   const [resendTimer, setResendTimer] = useState(0);
   const [otpExpireTimer, setOtpExpireTimer] = useState(120);
   const [loading, setLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [countryCode, setCountryCode] = useState('IN');
+  const [callingCode, setCallingCode] = useState('+91');
+  const [signupError, setSignupError] = useState('');
+
+  const phoneValid = phone.length >= 6 && phone.length <= 15;
+  const emailValid = /^\S+@\S+\.\S+$/.test(email.trim());
 
   const maskedPhone = useMemo(() => {
     const safe = phone || '';
-    if (safe.length < 4) return '+91 XXXXX0000';
-    return `+91 XXXXX${safe.slice(-4)}`;
-  }, [phone]);
+    if (safe.length < 4) return `${callingCode} XXXXX0000`;
+    return `${callingCode} XXXXX${safe.slice(-4)}`;
+  }, [callingCode, phone]);
 
   const passwordStrength = useMemo(() => {
     let score = 0;
-    if (signupPassword.length >= 12) score += 1;
+    if (signupPassword.length >= 6) score += 1;
     if (/[A-Z]/.test(signupPassword)) score += 1;
     if (/[^A-Za-z0-9]/.test(signupPassword)) score += 1;
     if (!name || !signupPassword.toLowerCase().includes(name.toLowerCase().split(' ')[0])) score += 1;
@@ -62,6 +74,80 @@ export default function AuthScreen({ onAuth }) {
   }, [signupPassword, name]);
 
   const passwordsMatch = confirmPassword.length > 0 && signupPassword === confirmPassword;
+  const isSignupPasswordValid = signupPassword.length >= 6 && passwordsMatch;
+
+  const handleVerifyOtp = useCallback(async () => {
+    if (otp.length < 6) return;
+    setLoading(true);
+    setOtpError('');
+
+    // For signup flow, verify OTP via backend before moving to password
+    if (otpFlow === 'signup') {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/auth/patient/verify-otp`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ phone: `${callingCode}${phone}`, otp }),
+        });
+
+        const payload = await response.json();
+        if (!response.ok || !payload?.success) {
+          throw new Error(payload?.message || 'Invalid OTP');
+        }
+
+        setLoading(false);
+        setScreen(SCREENS.SET_PASSWORD);
+        return;
+      } catch (error) {
+        setOtpError(error?.message || 'OTP verification failed.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // For patient flow, verify OTP and login
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/patient/verify-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: `${callingCode}${phone}`, otp }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || 'Invalid OTP');
+      }
+
+      setState((s) => ({
+        ...s,
+        authUserType: 'patient',
+        doctor: {
+          ...s.doctor,
+          name:
+            s.doctor?.name && s.doctor.name !== 'Patient User'
+              ? s.doctor.name
+              : 'Dr. Aris Sharma',
+          hospital:
+            s.doctor?.hospital && s.doctor.hospital !== 'Patient View'
+              ? s.doctor.hospital
+              : 'Apollo Hospital',
+          phone: `${callingCode}${phone}`,
+          role: s.doctor?.role || 'Doctor',
+          isLoggedIn: true,
+        },
+        patientProfile: {
+          ...s.patientProfile,
+          phone: `${callingCode}${phone}`,
+          name: payload?.data?.user?.name || s.patientProfile?.name,
+        },
+      }));
+      onAuth?.('patient');
+    } catch (error) {
+      setOtpError(error?.message || 'OTP verification failed.');
+    } finally {
+      setLoading(false);
+    }
+  }, [otp, otpFlow, callingCode, phone, loading]);
 
   useEffect(() => {
     if (resendTimer <= 0) return;
@@ -74,104 +160,220 @@ export default function AuthScreen({ onAuth }) {
     const t = setTimeout(() => setOtpExpireTimer((s) => s - 1), 1000);
     return () => clearTimeout(t);
   }, [screen, otpExpireTimer]);
-  useEffect(() => {
-    if (screen !== SCREENS.OTP_VERIFY) return;
-    if (otp.length === 6) handleVerifyOtp();
-  }, [otp, screen]);
+  
+  // NOTE: Auto-verification removed — user must click "Verify" button
+  // This avoids function-not-defined issues and gives user control
 
   const goToOtp = (flowType) => {
     setOtpFlow(flowType);
     setOtp('');
+    setOtpError('');
     setScreen(SCREENS.OTP_VERIFY);
     setResendTimer(30);
     setOtpExpireTimer(120);
   };
 
-  const handleHealthcareSignIn = () => {
-    if (phone.length < 10 || password.length < 6) return;
+  const requestPatientOtp = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/auth/patient/send-otp`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: `${callingCode}${phone}` }),
+    });
+
+    const payload = await response.json();
+    if (!response.ok || !payload?.success) {
+      throw new Error(payload?.message || 'Failed to send OTP');
+    }
+
+    return payload?.data;
+  };
+
+  const handleHealthcareSignIn = async () => {
+    if (!phoneValid || password.length < 6) return;
+
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
+    setLoginError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/staff/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: `${callingCode}${phone}`, password }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || 'Login failed');
+      }
+
+      const user = payload?.data?.user || {};
+
       setState((s) => ({
         ...s,
+        authUserType: 'doctor',
         doctor: {
           ...s.doctor,
-          phone,
-          role,
+          name: user?.name || s.doctor?.name,
+          hospital: user?.hospitalName || s.doctor?.hospital,
+          phone: user?.phone || `${callingCode}${phone}`,
+          role: user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : role,
           isLoggedIn: true,
         },
       }));
-      onAuth?.();
-    }, 500);
-  };
 
-  const handleSignupNext = () => {
-    if (!name || !hospital || !councilNo || phone.length < 10) return;
-    goToOtp('signup');
-  };
-
-  const handleSendOtpForPatient = () => {
-    if (phone.length < 10) return;
-    setLoading(true);
-    setTimeout(() => {
+      onAuth?.('doctor');
+    } catch (error) {
+      setLoginError(error?.message || 'Unable to sign in. Please try again.');
+    } finally {
       setLoading(false);
-      goToOtp('patient');
-    }, 800);
+    }
   };
 
-  const handleVerifyOtp = () => {
-    if (otp.length < 6) return;
+  const handleSignupNext = async () => {
+    if (!name || !emailValid || !hospital || !phoneValid) return;
+    setSignupError('');
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      if (otpFlow === 'signup') {
-        setScreen(SCREENS.SET_PASSWORD);
-      } else {
-        setState((s) => ({
-          ...s,
-          doctor: {
-            ...s.doctor,
-            name:
-              s.doctor?.name && s.doctor.name !== 'Patient User'
-                ? s.doctor.name
-                : 'Dr. Aris Sharma',
-            hospital:
-              s.doctor?.hospital && s.doctor.hospital !== 'Patient View'
-                ? s.doctor.hospital
-                : 'Apollo Hospital',
-            phone,
-            role: s.doctor?.role || 'Doctor',
-            isLoggedIn: true,
-          },
-        }));
-        onAuth?.();
+    try {
+      // Send OTP to doctor's phone before moving to OTP screen
+      const data = await requestPatientOtp();
+      console.log('🔐 Signup OTP data received:', data);
+      if (data?.devOtp) {
+        console.log('📱 Dev OTP auto-filled:', data.devOtp);
+        setOtp(data.devOtp);
       }
-    }, 600);
+      goToOtp('signup');
+    } catch (error) {
+      console.error('❌ OTP request failed:', error);
+      setSignupError(error?.message || 'Could not send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleCreateAccount = () => {
-    if (passwordStrength < 3 || !passwordsMatch) return;
-    setState((s) => ({
-      ...s,
-      doctor: {
-        ...s.doctor,
-        name,
-        hospital,
-        phone,
-        role,
-        councilNo,
-        isLoggedIn: true,
-      },
-    }));
-    onAuth?.();
+  const handleSendOtpForPatient = async () => {
+    if (!phoneValid) return;
+    setLoading(true);
+    setOtpError('');
+    try {
+      const data = await requestPatientOtp();
+      console.log('🔐 OTP data received:', data);
+      // Auto-fill OTP if devOtp is returned (development mode)
+      if (data?.devOtp) {
+        console.log('📱 Dev OTP auto-filled:', data.devOtp);
+        setOtp(data.devOtp);
+      }
+      goToOtp('patient');
+    } catch (error) {
+      console.error('❌ OTP request failed:', error);
+      setOtpError(error?.message || 'Could not send OTP. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    setResendTimer(30);
+    setOtp('');
+    setOtpError('');
+
+    if (otpFlow !== 'patient') return;
+
+    try {
+      await requestPatientOtp();
+    } catch (error) {
+      setResendTimer(0);
+      setOtpError(error?.message || 'Could not resend OTP.');
+    }
+  };
+
+  const handleCreateAccount = async () => {
+    if (!isSignupPasswordValid) return;
+
+    setLoading(true);
+    setSignupError('');
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/auth/staff/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          password: signupPassword,
+          role: role.toLowerCase(),
+          hospitalName: hospital.trim(),
+          specialization: '',
+          phone: `${callingCode}${phone}`,
+          otp: otp,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) {
+        throw new Error(payload?.message || 'Create account failed');
+      }
+
+      const registeredUser = payload?.data?.user || {};
+
+      setState((s) => ({
+        ...s,
+        authUserType: 'doctor',
+        doctor: {
+          ...s.doctor,
+          name: registeredUser?.name || name,
+          hospital: registeredUser?.hospitalName || hospital,
+          phone: registeredUser?.phone || `${callingCode}${phone}`,
+          role: role,
+          isLoggedIn: true,
+        },
+      }));
+
+      onAuth?.('doctor');
+    } catch (error) {
+      setSignupError(error?.message || 'Could not create account. Check backend/server and try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const fieldValid = {
-    healthcareLogin: phone.length === 10 && password.length >= 6,
-    signupDetails: !!name && !!hospital && !!councilNo && phone.length === 10,
-    signupPassword: passwordStrength >= 3 && passwordsMatch,
-    patientPhone: phone.length === 10,
+    healthcareLogin: phoneValid && password.length >= 6,
+    signupDetails: !!name && emailValid && !!hospital && phoneValid,
+    signupPassword: isSignupPasswordValid,
+    patientPhone: phoneValid,
   };
+
+  const handleCountrySelect = (selectedCountry) => {
+    setCountryCode(selectedCountry?.cca2 || 'IN');
+    const selectedCallingCode = selectedCountry?.callingCode?.[0];
+    if (selectedCallingCode) {
+      setCallingCode(`+${selectedCallingCode}`);
+    }
+  };
+
+  const renderPhoneInput = (placeholder = 'Phone number') => (
+    <View style={styles.phoneRowBox}>
+      <View style={styles.prefixBox}>
+        <CountryPicker
+          countryCode={countryCode}
+          withFilter
+          withFlag
+          withEmoji
+          withCallingCode
+          withCallingCodeButton
+          onSelect={handleCountrySelect}
+          containerButtonStyle={styles.countryPickerButton}
+        />
+        <AppIcon name="chevron-down" size={14} color="#657083" />
+      </View>
+      <TextInput
+        value={phone}
+        onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 15))}
+        placeholder={placeholder}
+        placeholderTextColor={colors.outline}
+        keyboardType="phone-pad"
+        style={styles.phoneInput}
+      />
+    </View>
+  );
 
   const renderTopBrand = (withHelp = true) => (
     <View style={styles.brandRow}>
@@ -260,17 +462,7 @@ export default function AuthScreen({ onAuth }) {
                 </View>
 
                 <Text style={styles.inputLabel}>PHONE NUMBER</Text>
-                <View style={styles.phoneRowBox}>
-                  <View style={styles.prefixBox}><Text style={styles.prefixText}>+91</Text></View>
-                  <TextInput
-                    value={phone}
-                    onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                    placeholder="10 digits"
-                    placeholderTextColor={colors.outline}
-                    keyboardType="phone-pad"
-                    style={styles.phoneInput}
-                  />
-                </View>
+                {renderPhoneInput('10-15 digits')}
 
                 <View style={styles.passwordLabelRow}>
                   <Text style={styles.inputLabel}>PASSWORD</Text>
@@ -298,6 +490,8 @@ export default function AuthScreen({ onAuth }) {
                 >
                   <Text style={styles.primaryBtnText}>{loading ? 'Signing in…' : 'Sign In  →'}</Text>
                 </TouchableOpacity>
+
+                {!!loginError && <Text style={styles.loginErrorText}>{loginError}</Text>}
 
                 <TouchableOpacity
                   style={styles.outlineBtn}
@@ -331,17 +525,7 @@ export default function AuthScreen({ onAuth }) {
               </View>
 
               <Text style={styles.inputLabel}>PHONE NUMBER</Text>
-              <View style={styles.phoneRowBox}>
-                <View style={styles.prefixBox}><Text style={styles.prefixText}>+91</Text></View>
-                <TextInput
-                  value={phone}
-                  onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="98765 43210"
-                  placeholderTextColor={colors.outline}
-                  keyboardType="phone-pad"
-                  style={styles.phoneInput}
-                />
-              </View>
+              {renderPhoneInput('Enter mobile number')}
 
               <TouchableOpacity
                 style={[styles.primaryBtn, !fieldValid.patientPhone && styles.primaryBtnDisabled]}
@@ -407,6 +591,17 @@ export default function AuthScreen({ onAuth }) {
                 placeholderTextColor={colors.outline}
               />
 
+              <Text style={styles.inputLabel}>EMAIL</Text>
+              <TextInput
+                style={styles.singleInput}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="name@hospital.com"
+                placeholderTextColor={colors.outline}
+                autoCapitalize="none"
+                keyboardType="email-address"
+              />
+
               <Text style={styles.inputLabel}>ROLE</Text>
               <View style={styles.roleSegmentRow}>
                 {['Doctor', 'Nurse'].map((item) => (
@@ -429,31 +624,8 @@ export default function AuthScreen({ onAuth }) {
                 placeholderTextColor={colors.outline}
               />
 
-              <View style={styles.labelWithInfo}>
-                <Text style={styles.inputLabel}>COUNCIL REG. NO.</Text>
-                <Text style={styles.infoTiny}>ⓘ</Text>
-              </View>
-              <TextInput
-                style={styles.singleInput}
-                value={councilNo}
-                onChangeText={setCouncilNo}
-                placeholder="e.g. GMC-1234567"
-                placeholderTextColor={colors.outline}
-              />
-              <Text style={styles.helperText}>Required for professional verification via national registry.</Text>
-
               <Text style={styles.inputLabel}>PHONE NUMBER</Text>
-              <View style={styles.phoneRowBox}>
-                <View style={styles.prefixBox}><Text style={styles.prefixText}>+44</Text></View>
-                <TextInput
-                  value={phone}
-                  onChangeText={(t) => setPhone(t.replace(/\D/g, '').slice(0, 10))}
-                  placeholder="7700 900000"
-                  placeholderTextColor={colors.outline}
-                  keyboardType="phone-pad"
-                  style={styles.phoneInput}
-                />
-              </View>
+              {renderPhoneInput('Phone number')}
 
               <TouchableOpacity
                 style={[styles.primaryBtn, !fieldValid.signupDetails && styles.primaryBtnDisabled]}
@@ -471,6 +643,21 @@ export default function AuthScreen({ onAuth }) {
 
           {screen === SCREENS.OTP_VERIFY && (
             <View style={{ width: '100%' }}>
+              <TouchableOpacity 
+                onPress={() => {
+                  if (otpFlow === 'signup') {
+                    setScreen(SCREENS.HEALTHCARE_SIGNUP_DETAILS);
+                  } else {
+                    setScreen(SCREENS.ROLE_PICK);
+                  }
+                  setOtp('');
+                  setOtpError('');
+                }} 
+                style={styles.backIconRow}
+              >
+                <AppIcon name="back" size={24} color={colors.onSurface} />
+              </TouchableOpacity>
+
               <View style={styles.stepHeaderRowOtp}>
                 <Text style={styles.stepLabel}>VERIFY PHONE</Text>
                 <Text style={styles.stepRight}>Step 2 of 3</Text>
@@ -495,11 +682,13 @@ export default function AuthScreen({ onAuth }) {
                 {resendTimer > 0 ? (
                   <Text style={styles.resendText}>Resend in 0:{String(resendTimer).padStart(2, '0')}</Text>
                 ) : (
-                  <TouchableOpacity onPress={() => { setResendTimer(30); setOtp(''); }}>
+                  <TouchableOpacity onPress={handleResendOtp}>
                     <Text style={styles.resendAction}>Resend OTP</Text>
                   </TouchableOpacity>
                 )}
               </View>
+
+              {!!otpError && <Text style={styles.otpErrorText}>{otpError}</Text>}
 
               <TouchableOpacity
                 style={[styles.primaryBtn, otp.length < 6 && styles.primaryBtnDisabled]}
@@ -518,6 +707,18 @@ export default function AuthScreen({ onAuth }) {
 
           {screen === SCREENS.SET_PASSWORD && (
             <View style={{ width: '100%' }}>
+              <TouchableOpacity 
+                onPress={() => {
+                  setScreen(SCREENS.OTP_VERIFY);
+                  setSignupPassword('');
+                  setConfirmPassword('');
+                  setSignupError('');
+                }} 
+                style={styles.backIconRow}
+              >
+                <AppIcon name="back" size={24} color={colors.onSurface} />
+              </TouchableOpacity>
+
               <Text style={styles.otpBrand}>MEDIRELAY</Text>
 
               <View style={styles.stepHeaderRowOtp}>
@@ -587,16 +788,18 @@ export default function AuthScreen({ onAuth }) {
               <TouchableOpacity
                 style={[styles.primaryBtn, !fieldValid.signupPassword && styles.primaryBtnDisabled]}
                 onPress={handleCreateAccount}
-                disabled={!fieldValid.signupPassword}
+                disabled={!fieldValid.signupPassword || loading}
               >
-                <Text style={styles.primaryBtnText}>Create Account  →</Text>
+                <Text style={styles.primaryBtnText}>{loading ? 'Creating…' : 'Create Account  →'}</Text>
               </TouchableOpacity>
+
+              {!!signupError && <Text style={styles.signupErrorText}>{signupError}</Text>}
 
               <View style={styles.securityCard}>
                 <Text style={styles.securityTitle}>SECURITY REQUIREMENTS</Text>
-                <Text style={styles.securityItem}>✹  Minimum 12 characters</Text>
-                <Text style={styles.securityItem}>✹  One uppercase & one special character</Text>
-                <Text style={styles.securityItemOff}>○  Does not contain your name or email</Text>
+                <Text style={styles.securityItem}>✹  Minimum 6 characters</Text>
+                <Text style={styles.securityItemOff}>○  Stronger passwords are recommended</Text>
+                <Text style={styles.securityItemOff}>○  Avoid using your name or email</Text>
               </View>
 
               <View style={styles.footerLinksRow}>
@@ -800,11 +1003,17 @@ const styles = StyleSheet.create({
     borderColor: '#dbe1ef',
   },
   prefixBox: {
-    width: 94,
+    width: 138,
     justifyContent: 'center',
     alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing[1],
     borderRightWidth: 1,
     borderRightColor: '#d6ddeb',
+  },
+  countryPickerButton: {
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   prefixText: {
     ...typography.headlineSm,
@@ -1182,6 +1391,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     ...typography.titleSm,
   },
+  otpErrorText: {
+    ...typography.bodyMd,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: spacing[3],
+  },
+  loginErrorText: {
+    ...typography.bodySm,
+    color: colors.error,
+    textAlign: 'center',
+    marginTop: -spacing[2],
+    marginBottom: spacing[3],
+  },
   strengthBarsRow: {
     flexDirection: 'row',
     gap: spacing[2],
@@ -1215,6 +1437,13 @@ const styles = StyleSheet.create({
   },
   matchText: {
     ...typography.headlineSm,
+    marginTop: -spacing[2],
+    marginBottom: spacing[4],
+  },
+  signupErrorText: {
+    ...typography.bodyMd,
+    color: colors.error,
+    textAlign: 'center',
     marginTop: -spacing[2],
     marginBottom: spacing[4],
   },

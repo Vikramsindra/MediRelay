@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity,
+  View, Text, StyleSheet, TouchableOpacity, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -15,11 +15,40 @@ export default function QRScannerScreen({ navigation, route }) {
   const [scanning, setScanning] = useState(mode !== 'paste');
   const [permission, requestPermission] = useCameraPermissions();
   const [lastScannedData, setLastScannedData] = useState('');
+  const scannedRef = useRef(false);
+
+  // Auto-navigate when QR is scanned
+  useEffect(() => {
+    if (!lastScannedData || scannedRef.current) return;
+    scannedRef.current = true;
+    
+    try {
+      // Extract shareId from QR data
+      // Expected format: "MR1:<compressed_json>" or direct URL/shareId
+      let shareId = lastScannedData;
+      
+      if (lastScannedData.startsWith('MR1:')) {
+        // For now, just extract the portion after MR1: as shareId
+        shareId = lastScannedData.substring(4);
+      } else if (lastScannedData.includes('/share/')) {
+        // If it's a full URL like "http://localhost:8080/api/v1/transfers/share/ABC123"
+        const match = lastScannedData.match(/\/share\/([^\/\?]+)/);
+        shareId = match ? match[1] : lastScannedData;
+      }
+      
+      // Navigate to RecordViewerScreen with shareId
+      navigation.navigate('RecordViewer', { shareId, qrData: lastScannedData });
+    } catch (error) {
+      Alert.alert('Error', 'Could not parse QR code. Please try again.');
+      scannedRef.current = false;
+      setLastScannedData('');
+    }
+  }, [lastScannedData, navigation]);
 
   const handlePasteNavigate = () => {
-    const match = pasteValue.match(/TR-[\w]+/);
-    const id = match ? match[0] : 'TR-4819';
-    navigation.navigate('RecordViewer', { transferId: id });
+    const match = pasteValue.match(/share\/([^\/?]+)/);
+    const shareId = match ? match[1] : pasteValue;
+    navigation.navigate('RecordViewer', { shareId, qrData: pasteValue });
   };
 
   return (
@@ -47,7 +76,11 @@ export default function QRScannerScreen({ navigation, route }) {
               barcodeScannerSettings={{
                 barcodeTypes: ['qr'],
               }}
-              onBarcodeScanned={({ data }) => setLastScannedData(data)}
+              onBarcodeScanned={({ data }) => {
+                if (!scannedRef.current) {
+                  setLastScannedData(data);
+                }
+              }}
             />
           ) : (
             <View style={styles.permissionWrap}>
@@ -71,7 +104,7 @@ export default function QRScannerScreen({ navigation, route }) {
             Point camera at MediRelay QR code
           </Text>
           <Text style={[typography.bodySm, { color: 'rgba(255,255,255,0.6)', marginTop: spacing[2], textAlign: 'center' }]}>
-            Scanner is live. Navigation on scan will be wired next.
+            Scan will automatically navigate to transfer record
           </Text>
           {lastScannedData ? (
             <View style={styles.detectedRow}>

@@ -96,6 +96,13 @@ export function AppIcon({ name, size = 18, color = '#111827', strokeWidth = 2 })
           <Path d="M12 7v6l4 2" {...common} />
         </Svg>
       );
+    case 'profile':
+      return (
+        <Svg width={size} height={size} viewBox="0 0 24 24">
+          <Circle cx="12" cy="8" r="4" {...common} />
+          <Path d="M4 20a8 8 0 0 1 16 0" {...common} />
+        </Svg>
+      );
     case 'camera':
       return (
         <Svg width={size} height={size} viewBox="0 0 24 24">

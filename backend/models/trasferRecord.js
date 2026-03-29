@@ -3,7 +3,7 @@ const mongoose = require("mongoose");
 const transferRecordSchema = new mongoose.Schema({
 
     // =========================
-    // 👤 PATIENT DETAILS (Embedded)
+    // 👤 PATIENT DETAILS (Embedded snapshot frozen at transfer time)
     // =========================
     patient: {
         fullName: { type: String, required: true },
@@ -24,6 +24,7 @@ const transferRecordSchema = new mongoose.Schema({
         noKnownAllergies: { type: Boolean, default: false },
         allergies: [
             {
+                _id: false,
                 allergen: String,
                 reaction: String
             }
@@ -34,12 +35,22 @@ const transferRecordSchema = new mongoose.Schema({
         noRegularMedications: { type: Boolean, default: false },
         permanentMedications: [
             {
+                _id: false,
                 name: String,
                 dose: String,
                 route: String,
                 frequency: String
             }
         ]
+    },
+
+    // =========================
+    // 🔗 PATIENT REFERENCE (indexed for history queries)
+    // =========================
+    patientId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "DoctorPatient",
+        index: true,
     },
 
     // =========================
@@ -83,7 +94,15 @@ const transferRecordSchema = new mongoose.Schema({
     },
 
     // =========================
-    // 🧠 SECTION 3 — CONDITION DETAILS (Dynamic)
+    // 🧠 SECTION 3 — CONDITION DETAILS (Dynamic per category)
+    // conditionDetails fields per category:
+    //   Cardiac:     { symptomOnsetTime, ecgDone, ecgFindings, thrombolysisGiven }
+    //   Neuro:       { symptomOnsetTime, strokeType, ctDone, ctFindings, seizureActive }
+    //   Obstetric:   { gestationalAge, rhFactor, fetalHeartRate, reasonHighRisk }
+    //   Respiratory: { oxygenRequired, onVentilator, ventilatorSettings }
+    //   Renal:       { urineOutput, onDialysis, lastCreatinine }
+    //   Trauma:      { mechanismOfInjury, majorInjuries, surgeryNeeded }
+    //   Neonatal:    { gestationalAge, birthWeight, apgarScore, deliveryType }
     // =========================
     conditionDetails: {
         type: Object,
@@ -95,6 +114,7 @@ const transferRecordSchema = new mongoose.Schema({
     // =========================
     activeMedications: [
         {
+            _id: false,
             name: { type: String, required: true },
             dose: { type: String, required: true },
             route: { type: String, enum: ["Oral", "IV", "IM"], required: true },
@@ -122,7 +142,7 @@ const transferRecordSchema = new mongoose.Schema({
     // 🔗 SHARING
     // =========================
     reportId: String,
-    shareId: { type: String },
+    shareId: { type: String, unique: true, sparse: true },
     qrCode: String,
 
     // =========================
@@ -136,6 +156,6 @@ const transferRecordSchema = new mongoose.Schema({
 
 }, { timestamps: true });
 
-const TransferRecord = mongoose.model("TransferRecord", transferRecordSchema);
+const TransferRecord = mongoose.model("TransferRecord", transferRecordSchema, "transferrecords");
 
 module.exports = TransferRecord;

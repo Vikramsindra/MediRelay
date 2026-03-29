@@ -7,6 +7,7 @@ const TABS = [
   { name: 'Home',     iconName: 'home', label: 'Home' },
   { name: 'Patients', iconName: 'users', label: 'Patients' },
   { name: 'History',  iconName: 'clock', label: 'History' },
+  { name: 'Profile',  iconName: 'profile', label: 'Profile' },
 ];
 
 export default function BottomTabBar({ state, descriptors, navigation }) {
