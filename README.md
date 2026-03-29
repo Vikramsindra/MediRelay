@@ -1,493 +1,211 @@
 # MediRelay
 
-> **Fast, structured, life-saving patient transfer records — from one hospital to another.**
+MediRelay is a mobile-first patient transfer handoff system for inter-hospital referrals.
 
----
+It helps sending teams create structured transfer records quickly and helps receiving teams review critical information first.
 
-## 📖 About the Project
+## Problem
 
+<<<<<<< HEAD
 MediRelay is a smart patient transfer system designed to eliminate errors caused by unstructured, paper-based medical handoffs between hospitals. During patient transfers, critical information such as allergies, medications, and diagnoses is often incomplete, unclear, or difficult to interpret—leading to serious medical risks.
 MediRelay solves this by providing a structured, digital transfer record that can be generated quickly by the sending team and accessed instantly by the receiving team via a QR code or shareable link.
 The system supports multi-modal input, allowing doctors to enter data manually or upload medical reports (images/PDFs), which are processed using OCR to extract relevant clinical information. All patient records are linked using a unique ABHA ID, ensuring continuity of care and eliminating duplicate records across multiple hospitals.
 With features like critical information prioritization, transfer history tracking, and real-time data accessibility, MediRelay enables doctors to make faster, safer, and more informed decisions during emergency handoffs.
+=======
+In many referrals, key details are passed as paper notes that are incomplete or hard to read. This delays decisions and increases risk.
 
-### Why MediRelay?
+MediRelay addresses this by standardizing the transfer handoff into a consistent, scannable record.
+>>>>>>> fecece6 (feat: added readme file)
 
-| Problem | MediRelay Solution |
-|---|---|
-| Paper-based referral slips are illegible, incomplete, or lost | Structured digital record with validation |
-| Receiving doctor has no context about the patient | Full patient history + transfer details in one view |
-| Critical info (allergies, must-not-stop meds) is buried in notes | Priority-ordered display — critical info shown first |
-| Transfer documentation takes too long in emergencies | Auto-fill from patient profile + voice input support |
-| No audit trail of transfers | Timestamped records with status tracking |
+## What The App Does
 
----
+- Creates structured transfer records from a guided multi-step form
+- Prioritizes critical information at the top of the receiver view:
+  - allergies
+  - must-not-stop medications
+  - transfer severity and reason
+- Generates shareable transfer access via:
+  - QR payload
+  - share link
+- Allows receiving team acknowledgement with arrival note and discrepancy flag
+- Maintains transfer history (sent and received views)
+- Supports OCR-assisted extraction from referral images to pre-fill transfer fields
+- Supports QR input using:
+  - live camera scan
+  - image upload from device gallery
+  - pasted link/code
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Backend
 
-| Technology | Version | Why It's Used |
-|---|---|---|
-| **Node.js** | — | JavaScript runtime for the server. Chosen for its non-blocking I/O model, ideal for handling concurrent API requests from multiple hospitals. |
-| **Express.js** | v5.2 | Minimal, unopinionated web framework. Provides routing, middleware, and HTTP utilities without unnecessary overhead. Express v5 brings improved async error handling. |
-| **MongoDB** | — | NoSQL document database. Patient and transfer records are naturally document-shaped (nested objects like allergies, medications, vitals). MongoDB handles these without complex joins. |
-| **Mongoose** | v9.3 | ODM (Object Data Modeling) for MongoDB. Provides schema validation, type casting, query building, and population of referenced documents — ensuring data integrity at the application layer. |
-| **dotenv** | v17.3 | Loads environment variables from `.env` files. Keeps secrets (MongoDB URI) out of source code. |
-| **CORS** | v2.8 | Enables Cross-Origin Resource Sharing so the React Native frontend can communicate with the backend API from any origin. |
+- Node.js
+- Express 5
+- MongoDB + Mongoose
+- Groq SDK + Tesseract.js + Sharp (OCR pipeline)
+- Multer (file upload)
 
 ### Frontend
 
-| Technology | Version | Why It's Used |
-|---|---|---|
-| **React Native** | v0.81 | Cross-platform mobile framework. Write once, deploy on both Android and iOS. Doctors use mobile devices at the bedside, so a native mobile experience is essential. |
-| **Expo** | SDK 54 | Managed workflow for React Native. Simplifies build, development, and deployment. Provides access to device APIs (camera for QR scanning) without native code setup. |
-| **React Navigation** | v6 | Standard navigation library for React Native. Provides stack navigation (screen-to-screen flow) and bottom tab navigation (main app sections). |
-| **expo-camera** | v17 | Camera access for QR code scanning. Receiving doctors can scan the QR code to instantly pull up the transfer record. |
-| **react-native-svg** | v15 | SVG rendering in React Native. Used for icons, QR code display, and visual elements. |
+- React Native 0.81
+- Expo SDK 54
+- React Navigation
+- expo-camera (live scanning + decode-from-image)
+- expo-image-picker, expo-clipboard, expo-sharing, expo-file-system
 
-### Architecture
+## Repository Structure
 
-```
-┌─────────────────────┐         ┌─────────────────────┐
-│   React Native App  │  HTTP   │   Express.js API     │
-│   (Expo SDK 54)     │ ──────> │   (Node.js)          │
-│                     │         │                      │
-│  • Patient forms    │         │  /api/v1/patients    │
-│  • Transfer forms   │         │  /api/v1/transfers   │
-│  • QR scanner       │         │                      │
-│  • Report viewer    │         │                      │
-└─────────────────────┘         └──────────┬───────────┘
-                                           │
-                                           │ Mongoose ODM
-                                           │
-                                    ┌──────▼──────┐
-                                    │   MongoDB    │
-                                    │  (Cloud)     │
-                                    └─────────────┘
-```
-
----
-
-## 📂 Project Structure
-
-```
+```text
 MediRelay/
-├── backend/
-│   ├── app.js                    # Entry point — starts server & connects DB
-│   ├── server.js                 # Express app setup, middleware, route mounting
-│   ├── config/
-│   │   └── db.js                 # MongoDB connection using Mongoose
-│   ├── models/
-│   │   ├── PatientModel.js       # Patient schema (identity, allergies, meds)
-│   │   └── trasferRecord.js      # Transfer record schema (refs Patient by ObjectId)
-│   ├── routes/
-│   │   ├── patientRoutes.js      # CRUD + search for patients
-│   │   └── transferRoutes.js     # Create, update, fetch, share transfers
-│   ├── .env                      # Environment variables (MONGODB_URI)
-│   └── package.json
-│
-├── frontend/                     # React Native (Expo) mobile app
-│   ├── App.js
-│   ├── src/                      # Screens, components, navigation
-│   ├── assets/
-│   └── package.json
-│
-└── README.md
+  backend/
+    app.js
+    server.js
+    config/
+      db.js
+    models/
+      PatientModel.js
+      transferRecord.js
+    routes/
+      patientRoutes.js
+      transferRoutes.js
+      userRoutes.js
+      ocrRoutes.js
+    services/
+      ocrService.js
+  frontend/
+    App.js
+    src/
+      api/
+      screens/
+      components/
+      navigation/
+      storage/
+      store/
+      theme/
 ```
 
----
+## Data Models
 
-## 🗃️ Database Models (Schemas)
+### Patient
 
-### 1. Patient Model (`PatientModel.js`)
+Stores long-lived patient profile details:
 
-> Stores the **permanent** patient profile. Created once during admission.
+- identity and demographics
+- ABHA ID (optional)
+- allergies
+- chronic conditions
+- permanent medications
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `fullName` | String | ✅ | Patient's full name |
-| `age` | Number | ✅ | |
-| `sex` | String (enum) | ✅ | `M` / `F` / `Other` |
-| `bloodGroup` | String (enum) | — | `A+`, `A-`, `B+`, `B-`, `O+`, `O-`, `AB+`, `AB-` |
-| `phone` | String | — | |
-| `emergencyContact.name` | String | — | |
-| `emergencyContact.phone` | String | — | |
-| `emergencyContact.relation` | String | — | |
-| `noKnownAllergies` | Boolean | — | Default: `false` |
-| `allergies[]` | Array of Objects | — | Each: `{ allergen, reaction }` |
-| `chronicConditions[]` | Array of Strings | — | e.g. `["Diabetes", "Hypertension"]` |
-| `noRegularMedications` | Boolean | — | Default: `false` |
-| `permanentMedications[]` | Array of Objects | — | Each: `{ name, dose, route, frequency }` |
-| `createdAt` | Date | auto | Mongoose timestamps |
-| `updatedAt` | Date | auto | Mongoose timestamps |
+### TransferRecord
 
----
+Stores each transfer event snapshot:
 
-### 2. Transfer Record Model (`trasferRecord.js`)
+- patient reference + embedded patient snapshot
+- sending/receiving hospital and doctor
+- chief complaint, category, severity, reason for transfer
+- vitals
+- active medications (including must-not-stop)
+- clinical summary
+- pending investigations
+- share ID and status (`draft`, `submitted`, `acknowledged`)
 
-> Stores each **transfer event**. References the Patient model by ObjectId.
+## API Overview
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| **Patient Reference** | | | |
-| `patient` | ObjectId (ref → `Patient`) | ✅ | References the Patient collection. Populated on read queries. |
-| **Meta Info** | | | |
-| `sendingHospital` | String | ✅ | Hospital initiating the transfer |
-| `receivingHospital` | String | — | Destination hospital |
-| `doctorName` | String | ✅ | Sending doctor's name |
-| `timestamp` | Date | — | Default: `Date.now` |
-| **Section 1 — Situation** | | | |
-| `chiefComplaint` | String | ✅ | e.g. "Chest pain since 2hrs" |
-| `conditionCategory` | String (enum) | ✅ | `Cardiac` / `Neuro` / `Trauma` / `Obstetric` / `Respiratory` / `Renal` / `Neonatal` / `Other` |
-| `severity` | String (enum) | ✅ | `Critical` / `Serious` / `Stable` |
-| `reasonForTransfer` | String | ✅ | |
-| **Section 2 — Vitals** | | | |
-| `vitals.bp` | String | — | Blood pressure (e.g. "120/80") |
-| `vitals.hr` | Number | — | Heart rate |
-| `vitals.spo2` | Number | — | Oxygen saturation % |
-| `vitals.temp` | Number | — | Temperature |
-| `vitals.rr` | Number | — | Respiratory rate |
-| `vitals.gcs` | Number | — | Glasgow Coma Scale (3–15) |
-| `vitals.bloodSugar` | Number | — | mg/dL |
-| **Section 3 — Condition Details** | | | |
-| `conditionDetails` | Object | — | Dynamic fields based on `conditionCategory`. Default: `{}` |
-| **Section 4 — Active Medications** | | | |
-| `activeMedications[]` | Array of Objects | — | Each: `{ name✅, dose✅, route✅ (Oral/IV/IM), lastGivenAt, mustNotStop }` |
-| **Section 5 — Handoff Note** | | | |
-| `clinicalSummary` | String | — | Max 150 characters |
-| `pendingInvestigations[]` | Array of Strings | — | e.g. `["ECG", "CBC", "CT"]` |
-| `modeOfTransfer` | String (enum) | — | `Ambulance` / `Air` / `Private Vehicle` |
-| **Sharing** | | | |
-| `reportId` | String | — | e.g. "TR-XXXX" |
-| `shareId` | String | — | Unique share identifier for link/QR |
-| `qrCode` | String | — | Encoded QR code data |
-| **Status** | | | |
-| `status` | String (enum) | — | `draft` / `submitted` / `acknowledged`. Default: `draft` |
-| `createdAt` | Date | auto | Mongoose timestamps |
-| `updatedAt` | Date | auto | Mongoose timestamps |
+Base URL:
 
-#### Entity Relationship
-
-```
-┌──────────────────┐       ┌────────────────────────┐
-│     Patient      │       │    TransferRecord       │
-├──────────────────┤       ├────────────────────────┤
-│ _id (ObjectId)   │◄──────│ patient (ObjectId ref)  │
-│ fullName         │       │ sendingHospital         │
-│ age              │       │ receivingHospital       │
-│ sex              │       │ doctorName              │
-│ bloodGroup       │       │ chiefComplaint          │
-│ phone            │       │ conditionCategory       │
-│ emergencyContact │       │ severity                │
-│ allergies[]      │       │ reasonForTransfer       │
-│ chronicConditions│       │ vitals                  │
-│ permanentMeds[]  │       │ activeMedications[]     │
-│ ...              │       │ clinicalSummary         │
-└──────────────────┘       │ shareId                 │
-       1 ──────────── *    │ status                  │
-    (One patient can       │ ...                     │
-     have many transfers)  └────────────────────────┘
+```text
+http://localhost:8080/api/v1
 ```
 
----
+### Patient APIs
 
-## 🔌 API Reference
+- `POST /patients` create patient
+- `GET /patients?doctorId=<id>` list patients for doctor
+- `GET /patients/search?search=<query>&doctorId=<id>` search
+- `GET /patients/:id?doctorId=<id>` get patient details
 
-**Base URL:** `http://localhost:8080/api/v1`
+### Transfer APIs
 
----
+- `POST /transfers` create transfer
+- `GET /transfers?doctorId=<id>` transfer history by doctor
+- `GET /transfers?patientId=<id>` transfer history by patient
+- `GET /transfers/:id` get transfer by ID
+- `GET /transfers/share/:shareId` get transfer by share ID
+- `PATCH /transfers/:id` update transfer (for acknowledgement/status updates)
 
-### Patient APIs (`/api/v1/patients`)
+### OCR API
 
-#### 1. Create Patient
+- `POST /ocr/extract-transfer` extract structured transfer details from uploaded image
 
-```
-POST /patients
-```
+## Current Transfer Workflow
 
-**Request Body:**
+1. Doctor logs in and selects a patient.
+2. Sending team fills structured transfer form (or pre-fills via OCR).
+3. App submits transfer and generates QR/share route.
+4. Receiving team opens transfer via scan, gallery QR upload, or link paste.
+5. Receiver marks as reviewed/acknowledged with arrival context.
 
-```json
-{
-  "fullName": "Rahul Sharma",
-  "age": 45,
-  "sex": "M",
-  "bloodGroup": "B+",
-  "phone": "9876543210",
-  "doctorId": "665abc123def456789abcdef",
-  "emergencyContact": {
-    "name": "Priya Sharma",
-    "phone": "9876543211",
-    "relation": "Spouse"
-  },
-  "noKnownAllergies": false,
-  "allergies": [
-    { "allergen": "Penicillin", "reaction": "Anaphylaxis" }
-  ],
-  "chronicConditions": ["Diabetes", "Hypertension"],
-  "noRegularMedications": false,
-  "permanentMedications": [
-    { "name": "Metformin", "dose": "500mg", "route": "Oral", "frequency": "BD" }
-  ]
-}
-```
+## Setup
 
-**Response:** `201 Created`
+## Prerequisites
 
-```json
-{
-  "success": true,
-  "data": { /* full patient object with _id */ }
-}
-```
+- Node.js 18+
+- MongoDB Atlas or local MongoDB
+- Expo Go app on phone or simulator/emulator
 
----
-
-#### 2. Get All Patients (by Doctor)
-
-```
-GET /patients?doctorId=<doctorId>
-```
-
-**Response:** `200 OK`
-
-```json
-{
-  "success": true,
-  "count": 5,
-  "data": [ /* array of patient objects */ ]
-}
-```
-
----
-
-#### 3. Search Patients
-
-```
-GET /patients/search?search=<query>&doctorId=<doctorId>
-```
-
-Searches across `fullName`, `phone`, `bloodGroup`, `emergencyContact.name`, and `emergencyContact.phone`. Returns max 20 results.
-
----
-
-#### 4. Get Patients by Doctor ID (with optional name search)
-
-```
-GET /patients/doctor/:doctorId?search=<optional name>
-```
-
----
-
-#### 5. Get Single Patient
-
-```
-GET /patients/:id
-```
-
----
-
-### Transfer APIs (`/api/v1/transfers`)
-
-#### 1. Create Transfer
-
-```
-POST /transfers
-```
-
-**Request Body:**
-
-```json
-{
-  "patientId": "665abc123def456789abcdef",
-  "sendingHospital": "City General Hospital",
-  "receivingHospital": "Apollo Cardiac Center",
-  "doctorName": "Dr. Mehta",
-  "chiefComplaint": "Acute chest pain since 2 hours",
-  "conditionCategory": "Cardiac",
-  "severity": "Critical",
-  "reasonForTransfer": "Needs cath lab — Acute MI",
-  "vitals": {
-    "bp": "140/90",
-    "hr": 92,
-    "spo2": 94,
-    "temp": 98.6,
-    "rr": 20
-  },
-  "activeMedications": [
-    {
-      "name": "Aspirin",
-      "dose": "325mg",
-      "route": "Oral",
-      "lastGivenAt": "10:30 AM",
-      "mustNotStop": true
-    }
-  ],
-  "clinicalSummary": "45M with acute STEMI, thrombolysis given, needs PCI",
-  "pendingInvestigations": ["ECG", "Troponin", "Echo"],
-  "modeOfTransfer": "Ambulance"
-}
-```
-
-**Response:** `201 Created`
-
-```json
-{
-  "success": true,
-  "data": { /* full transfer object with populated patient */ },
-  "link": "http://localhost:8080/api/v1/transfers/share/<shareId>"
-}
-```
-
----
-
-#### 2. Get All Transfers (optionally filter by patient)
-
-```
-GET /transfers?patientId=<optional patientId>
-```
-
-Returns all transfers sorted by newest first. Patient data is populated automatically.
-
----
-
-#### 3. Get Single Transfer
-
-```
-GET /transfers/:id
-```
-
-Returns the transfer with full patient data populated.
-
----
-
-#### 4. Get Transfer by Share Link
-
-```
-GET /transfers/share/:shareId
-```
-
-Used by the **receiving hospital** to view the transfer record via a shared link or QR code. Patient data is populated automatically.
-
----
-
-#### 5. Update Transfer
-
-```
-PATCH /transfers/:id
-```
-
-**Request Body:** Any subset of transfer fields to update.
-
-**Response:** `200 OK` with the updated transfer.
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- **Node.js** (v18+)
-- **MongoDB** (local or cloud — e.g. MongoDB Atlas)
-- **Expo CLI** (for the mobile app)
-
-### Backend Setup
+### 1) Backend Setup
 
 ```bash
 cd backend
 npm install
-
-# Create .env file
-echo "MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>.mongodb.net/<dbname>" > .env
-
-# Start the server
-node app.js
 ```
 
-The server runs on `http://localhost:8080`.
+Create `backend/.env` with:
 
-### Frontend Setup
+```env
+MONGODB_URI=<your_mongodb_connection_string>
+GROQ_API_KEY=<your_groq_api_key>
+PORT=8080
+BACKEND_URL=http://localhost:8080
+```
+
+Start backend:
+
+```bash
+npm start
+```
+
+### 2) Frontend Setup
 
 ```bash
 cd frontend
 npm install
+```
 
-# Start the Expo dev server
+Create `frontend/.env` (or copy from `frontend/.env.example`):
+
+```env
+EXPO_PUBLIC_API_BASE_URL=http://<your-local-ip>:8080
+```
+
+Start app:
+
+```bash
 npx expo start
 ```
 
-Scan the QR code with Expo Go (Android/iOS) to run the app on your device.
+## Notes
 
----
+- Use local network IP for `EXPO_PUBLIC_API_BASE_URL` when running on a physical device.
+- QR scanning supports camera and gallery image decode.
+- Share endpoint returns transfer JSON; mobile app provides the clinical receiver UI.
 
-## ⏱️ Transfer Form Time Breakdown
+## Known Focus Areas
 
-| Section | Action | Time |
-|---|---|---|
-| — | Search and select patient | 10 sec |
-| Section 1 | Situation (4 fields) | 30 sec |
-| Section 2 | Vitals (5–6 number inputs) | 45 sec |
-| Section 3 | Condition-specific (3–4 fields) | 30 sec |
-| Section 4 | Active medications | 30 sec |
-| Section 5 | Handoff note (voice dictated) | 30 sec |
-| **Total** | | **~3 minutes** |
+- Continue tightening validation constraints for all handoff fields.
+- Expand reporting and analytics for transfer acknowledgement and discrepancies.
+- Add broader integration options for external hospital systems.
 
----
-
-## 🚨 Receiver View — Priority Order
-
-When the receiving doctor opens a transfer record, critical information is shown **first**:
-
-```
-1. ⚠️  ALLERGIES
-       Penicillin → Anaphylaxis
-
-2. 🛑  MUST-NOT-STOP MEDICATIONS
-       Aspirin 325mg Oral — last given 2h ago
-
-3. 🔴  REASON FOR TRANSFER
-       Needs cath lab — Acute MI
-
-4. ⏱️  SYMPTOM ONSET TIME
-       10:30 AM (2 hours ago)
-
-5. 🔴  SEVERITY
-       CRITICAL
-
-6. 📋  VITALS
-       BP: 140/90 | HR: 92 | SpO2: 94% | Temp: 98.6
-
-        ↓ rest of record below ↓
-
-7.     Full active medications list
-8.     Condition-specific findings
-9.     Clinical summary
-10.    Pending investigations
-```
-
----
-
-## 🗂️ Field-to-Model Mapping
-
-| Field | Patient Model | Transfer Model |
-|---|---|---|
-| Name, age, sex, blood group | ✅ | ❌ (referenced via ObjectId) |
-| Allergies | ✅ | ❌ (referenced via ObjectId) |
-| Chronic conditions | ✅ | ❌ (referenced via ObjectId) |
-| Permanent medications | ✅ | ❌ (referenced via ObjectId) |
-| Emergency contact | ✅ | ❌ (referenced via ObjectId) |
-| Chief complaint | ❌ | ✅ |
-| Vitals | ❌ | ✅ |
-| Active medications | ❌ | ✅ |
-| Condition-specific fields | ❌ | ✅ |
-| Clinical summary | ❌ | ✅ |
-| Pending investigations | ❌ | ✅ |
-| QR code / short link | ❌ | ✅ |
-| Status tracking | ❌ | ✅ |
-
----
-
-## 📄 License
+## License
 
 ISC
