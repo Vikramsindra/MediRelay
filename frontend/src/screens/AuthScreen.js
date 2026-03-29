@@ -831,21 +831,21 @@ const styles = StyleSheet.create({
   brandWordmark: {
     fontSize: 42 / 2,
     letterSpacing: 1,
-    color: '#0A1628',
+    color: colors.primary,
     fontWeight: '800',
   },
   helpCircle: {
     width: 52,
     height: 52,
     borderRadius: 26,
-    backgroundColor: '#dce7fb',
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   helpText: {
     fontSize: 26 / 1.6,
     fontWeight: '800',
-    color: '#0A1628',
+    color: colors.onPrimary,
   },
   rolePickCenter: {
     flex: 1,
@@ -854,7 +854,7 @@ const styles = StyleSheet.create({
   },
   rolePickHeading: {
     ...typography.displayMd,
-    color: '#0A1628',
+    color: colors.primary,
     textAlign: 'center',
     marginBottom: spacing[2],
     fontWeight: '700',
@@ -869,7 +869,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#111827',
+    borderColor: colors.primary,
     backgroundColor: '#f7f8fc',
     borderRadius: 22,
     padding: spacing[4],
@@ -880,17 +880,17 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 14,
-    backgroundColor: '#e9edf9',
+    backgroundColor: colors.secondaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
   },
   roleIconGlyph: {
     fontSize: 27 / 1.4,
-    color: '#0A1628',
+    color: colors.primary,
   },
   roleOptionTitle: {
     ...typography.headlineSm,
-    color: '#0A1628',
+    color: colors.primary,
     fontWeight: '700',
   },
   roleOptionSub: {
@@ -905,7 +905,7 @@ const styles = StyleSheet.create({
     ...typography.labelMd,
   },
   portalHeader: {
-    backgroundColor: '#0A1628',
+    backgroundColor: colors.primary,
     borderBottomLeftRadius: 52,
     borderBottomRightRadius: 52,
     minHeight: 210,
@@ -963,7 +963,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   segmentBtnActive: {
-    backgroundColor: '#0A1628',
+    backgroundColor: colors.primary,
   },
   segmentBtnActiveLight: {
     backgroundColor: '#fff',
@@ -984,7 +984,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   segmentTextDarkActive: {
-    color: '#0A1628',
+    color: colors.primary,
   },
   inputLabel: {
     ...typography.labelSm,
@@ -1017,7 +1017,7 @@ const styles = StyleSheet.create({
   },
   prefixText: {
     ...typography.headlineSm,
-    color: '#0A1628',
+    color: colors.primary,
     fontWeight: '700',
   },
   phoneInput: {
@@ -1074,7 +1074,7 @@ const styles = StyleSheet.create({
   primaryBtn: {
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#0A1628',
+    backgroundColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: spacing[4],
@@ -1092,12 +1092,12 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#0A1628',
+    borderColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   outlineBtnText: {
-    color: '#0A1628',
+    color: colors.primary,
     fontSize: 34 / 2,
     fontWeight: '700',
   },
@@ -1116,7 +1116,7 @@ const styles = StyleSheet.create({
   },
   patientHero: {
     borderRadius: 28,
-    backgroundColor: '#10223e',
+    backgroundColor: colors.primary,
     padding: spacing[6],
     marginTop: spacing[2],
     marginBottom: spacing[5],
@@ -1140,7 +1140,7 @@ const styles = StyleSheet.create({
   },
   patientTitle: {
     ...typography.displayMd,
-    color: '#0A1628',
+    color: colors.primary,
     fontSize: 56 / 2,
     fontWeight: '700',
   },
@@ -1168,7 +1168,7 @@ const styles = StyleSheet.create({
     height: 56,
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#0A1628',
+    borderColor: colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
@@ -1176,7 +1176,7 @@ const styles = StyleSheet.create({
     marginBottom: spacing[6],
   },
   scanBtnText: {
-    color: '#0A1628',
+    color: colors.primary,
     fontSize: 36 / 2,
     fontWeight: '700',
   },
@@ -1263,10 +1263,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#cfd6e8',
   },
   stepBarActive: {
-    backgroundColor: '#0A1628',
+    backgroundColor: colors.primary,
   },
   signupTitle: {
-    color: '#0A1628',
+    color: colors.primary,
     fontSize: 64 / 2,
     lineHeight: 74 / 2,
     fontWeight: '800',
@@ -1311,14 +1311,14 @@ const styles = StyleSheet.create({
     marginBottom: spacing[3],
   },
   linkInline: {
-    color: '#111827',
+    color: colors.primary,
     textDecorationLine: 'underline',
     fontWeight: '700',
   },
   otpBrand: {
     textAlign: 'center',
     fontSize: 56 / 2,
-    color: '#0A1628',
+    color: colors.primary,
     fontWeight: '800',
     letterSpacing: 1,
     marginBottom: spacing[4],
@@ -1327,7 +1327,7 @@ const styles = StyleSheet.create({
     width: 136,
     height: 136,
     borderRadius: 68,
-    backgroundColor: '#0A1628',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     alignSelf: 'center',
@@ -1342,7 +1342,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontSize: 60 / 2,
     lineHeight: 68 / 2,
-    color: '#0A1628',
+    color: colors.primary,
     fontWeight: '800',
     marginBottom: spacing[2],
   },
@@ -1366,12 +1366,12 @@ const styles = StyleSheet.create({
   resendAction: {
     ...typography.titleMd,
     textDecorationLine: 'underline',
-    color: '#0A1628',
+    color: colors.primary,
   },
   otpExpirePill: {
     alignSelf: 'center',
     marginTop: spacing[6],
-    backgroundColor: '#dce7fb',
+    backgroundColor: colors.primaryContainer,
     borderRadius: radius.full,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[2],
@@ -1386,7 +1386,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#d11a2a',
   },
   otpExpireText: {
-    color: '#0A1628',
+    color: colors.onPrimary,
     fontWeight: '800',
     letterSpacing: 1,
     ...typography.titleSm,

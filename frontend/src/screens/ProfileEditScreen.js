@@ -72,7 +72,7 @@ export default function ProfileEditScreen({ navigation }) {
 
           <Text style={styles.label}>HOSPITAL NAME</Text>
           <View style={styles.inputWrapRow}>
-            <AppIcon name="link" size={18} color="#7a86a0" />
+            <AppIcon name="link" size={18} color={colors.primary} />
             <TextInput
               style={[styles.input, { paddingHorizontal: spacing[2], flex: 1 }]}
               value={hospitalName}
@@ -91,14 +91,14 @@ export default function ProfileEditScreen({ navigation }) {
               placeholder="Department"
               placeholderTextColor={colors.outline}
             />
-            <AppIcon name="chevron-down" size={18} color="#7a86a0" />
+            <AppIcon name="chevron-down" size={18} color={colors.primary} />
           </View>
         </View>
 
         {/* Locked fields */}
         <View style={styles.lockCard}>
           <View style={styles.lockLeft}>
-            <AppIcon name="link" size={18} color="#8e9ab0" />
+            <AppIcon name="link" size={18} color={colors.primary} />
             <View style={{ marginLeft: spacing[3] }}>
               <Text style={styles.lockLabel}>PHONE NUMBER</Text>
               <Text style={styles.lockValue}>+1(555) 0123-4567</Text>
@@ -109,7 +109,7 @@ export default function ProfileEditScreen({ navigation }) {
 
         <View style={styles.lockCard}>
           <View style={styles.lockLeft}>
-            <AppIcon name="clipboard" size={18} color="#8e9ab0" />
+            <AppIcon name="clipboard" size={18} color={colors.primary} />
             <View style={{ marginLeft: spacing[3] }}>
               <Text style={styles.lockLabel}>COUNCIL REG. NO.</Text>
               <Text style={styles.lockValue}>MED-99420-TX</Text>
@@ -127,7 +127,7 @@ export default function ProfileEditScreen({ navigation }) {
             </View>
             <Text style={styles.changePasswordText}>Change Password</Text>
           </View>
-          <AppIcon name="chevron-right" size={18} color="#7a86a0" />
+          <AppIcon name="chevron-right" size={18} color={colors.primary} />
         </TouchableOpacity>
 
         <View style={{ height: 120 }} />
@@ -144,9 +144,9 @@ export default function ProfileEditScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#e7eaf1' },
+  safe: { flex: 1, backgroundColor: colors.background },
   header: {
-    backgroundColor: '#081b3b',
+    backgroundColor: colors.primary,
     paddingHorizontal: spacing[5],
     paddingTop: spacing[3],
     paddingBottom: spacing[3],
@@ -179,8 +179,8 @@ const styles = StyleSheet.create({
     height: 160,
     borderRadius: 80,
     borderWidth: 6,
-    borderColor: '#9aa7c3',
-    backgroundColor: '#2b7d8d',
+    borderColor: colors.primaryContainer,
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: spacing[3],
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   },
   editPhotoText: {
     ...typography.headlineSm,
-    color: '#0b5a33',
+    color: colors.primary,
     fontWeight: '700',
   },
   formCard: {
@@ -211,12 +211,14 @@ const styles = StyleSheet.create({
   },
   label: {
     ...typography.labelSm,
-    color: '#7685a0',
+    color: colors.onSurfaceVariant,
     marginBottom: spacing[2],
     letterSpacing: 1,
   },
   inputWrap: {
-    backgroundColor: '#e8ecf8',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
     paddingHorizontal: spacing[4],
     marginBottom: spacing[5],
@@ -226,7 +228,9 @@ const styles = StyleSheet.create({
   inputWrapRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#e8ecf8',
+    backgroundColor: colors.surfaceContainer,
+    borderWidth: 1,
+    borderColor: colors.outlineVariant,
     borderRadius: radius.lg,
     paddingHorizontal: spacing[4],
     marginBottom: spacing[5],
@@ -234,10 +238,10 @@ const styles = StyleSheet.create({
   },
   input: {
     ...typography.headlineSm,
-    color: '#111827',
+    color: colors.onSurface,
   },
   lockCard: {
-    backgroundColor: '#edf1f9',
+    backgroundColor: colors.surfaceContainerLow,
     borderRadius: radius.lg,
     paddingHorizontal: spacing[4],
     paddingVertical: spacing[4],
@@ -253,13 +257,13 @@ const styles = StyleSheet.create({
   },
   lockLabel: {
     ...typography.labelSm,
-    color: '#90a0ba',
+    color: colors.outline,
     letterSpacing: 0.9,
     marginBottom: 2,
   },
   lockValue: {
     ...typography.headlineSm,
-    color: '#596b8b',
+    color: colors.onSurfaceVariant,
   },
   lockIcon: {
     fontSize: 16,
@@ -267,7 +271,7 @@ const styles = StyleSheet.create({
   },
   supportHint: {
     ...typography.bodyMd,
-    color: '#7f8faa',
+    color: colors.outline,
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: spacing[2],
@@ -288,14 +292,14 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: radius.md,
-    backgroundColor: '#e8ecf8',
+    backgroundColor: colors.primaryContainer,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: spacing[3],
   },
   changePasswordText: {
     ...typography.displayMd,
-    color: '#111827',
+    color: colors.primary,
     fontSize: 21 / 1.2,
     fontWeight: '700',
   },
@@ -314,7 +318,7 @@ const styles = StyleSheet.create({
   saveBtn: {
     height: 78 / 1.4,
     borderRadius: radius.lg,
-    backgroundColor: '#0b1f43',
+    backgroundColor: colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
     ...shadow.md,
