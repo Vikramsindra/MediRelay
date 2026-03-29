@@ -6,11 +6,10 @@
 
 ## 📖 About the Project
 
-MediRelay is a full-stack healthcare application designed to streamline **inter-hospital patient transfers**. In emergency scenarios, critical patient information must move between doctors quickly, accurately, and completely. MediRelay solves this by:
-
-1. **Pre-registering patients** — Doctors fill out a detailed patient profile (identity, allergies, chronic conditions, medications) _once_ during admission, with no time pressure.
-2. **Rapid transfer records** — When a transfer is needed, the doctor selects the patient, and the form auto-fills known data. The doctor only adds the _emergency-specific_ details (vitals, chief complaint, active medications, clinical summary). The entire transfer form is designed to be completed in **under 3 minutes**.
-3. **Shareable reports** — Each transfer generates a unique **share link** (and optionally a QR code) that the receiving hospital can open to see the full structured record — with critical items like allergies and must-not-stop medications displayed prominently at the top.
+MediRelay is a smart patient transfer system designed to eliminate errors caused by unstructured, paper-based medical handoffs between hospitals. During patient transfers, critical information such as allergies, medications, and diagnoses is often incomplete, unclear, or difficult to interpret—leading to serious medical risks.
+MediRelay solves this by providing a structured, digital transfer record that can be generated quickly by the sending team and accessed instantly by the receiving team via a QR code or shareable link.
+The system supports multi-modal input, allowing doctors to enter data manually or upload medical reports (images/PDFs), which are processed using OCR to extract relevant clinical information. All patient records are linked using a unique ABHA ID, ensuring continuity of care and eliminating duplicate records across multiple hospitals.
+With features like critical information prioritization, transfer history tracking, and real-time data accessibility, MediRelay enables doctors to make faster, safer, and more informed decisions during emergency handoffs.
 
 ### Why MediRelay?
 
