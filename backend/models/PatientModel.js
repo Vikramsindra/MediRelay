@@ -14,8 +14,7 @@ const patientSchema = new mongoose.Schema({
     fullName: { type: String, required: true },
     abhaId: {
         type: String,
-        trim: true,
-        sparse: true
+        trim: true
     },
     age: { type: Number, required: true },
     sex: { type: String, enum: ["M", "F", "Other"], required: true },
